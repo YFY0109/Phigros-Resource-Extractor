@@ -45,6 +45,8 @@
 
 版本号默认从 APK 文件名识别(如 `Phigros_4.0.1.apk` → `4.0.1`),也可以用 `--version` 指定。提取哪些类别可在 `config.json` 的 `types` 中配置(默认全部开启);`update` 可配置只提取各分类最新若干首。
 
+在已有其他版本产物的基础上提取新版本时,内容相同的文件会自动与旧版本建立**硬链接**以节省磁盘空间(判定方式:文件大小 + 头尾各 `sample_bytes` 字节);文件系统不支持硬链接时自动回退为普通写入。该功能可在 `config.json` 的 `dedupe` 中关闭(`enabled`)或调整采样大小(`sample_bytes`,默认 65536 字节)。
+
 > 第 2、3 步需按顺序执行:`resource.py` 的增量提取依赖 `gameInformation.py` 生成的 `outputs/<版本>/info/` 数据。
 
 在 Android 设备上不带参数运行时会通过 `pm path com.PigeonGames.Phigros` 自动定位已安装的 APK。

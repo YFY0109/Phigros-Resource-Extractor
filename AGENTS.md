@@ -26,6 +26,7 @@ uv run python phira.py [--version 版本]      # 3. 打包 outputs/<版本>/phir
 - `fsb5`(音乐提取)先从系统库、再从**当前工作目录**加载 `libogg.dll`/`libvorbis.dll`(见 `fsb5/utils.py` 的 `load_lib`),因此音乐提取必须在仓库根目录运行。这两个 DLL 依赖 **MSVCR120.dll(VC++ 2013 运行库)**,缺失时报 `LibraryNotFoundException: Could not load the library 'vorbis'`(实测);`save_music` 延迟导入 fsb5,未启用音乐时无需该依赖。
 - `config.json` 的 `types` 控制提取的资源类型。`update` 计数全为 `0` 表示全量提取;否则只提取各分类最新 N 首(主线/单曲/支线按 `resource.py` 中 `MAIN_STORY_END`、`OTHER_SONG_END` 两个锚点曲 ID 分段,锚点跟随游戏曲目表,游戏更新后可能需要调整)。
 - 资源类型到输出目录的映射集中在 `common.RESOURCE_DIRS`,`resource.py` 写入与 `phira.py` 读取共用,不要再硬编码目录名。
+- 跨版本去重在 `dedupe.py`:对 `outputs/` 下其他版本的同名文件按"文件大小 + 头尾各 `sample_bytes` 字节"计算 blake2b 摘要,一致则硬链接,否则正常写入;硬链接失败自动回退。配置在 `config.json` 的 `dedupe`。注意硬链接文件是多版本共享的只读产物,不要原地修改。
 - `main.py` 已腐烂/无法运行(`from . import resource` 相对导入错误、旧接口签名),不要以它为范本;用 CLI 脚本或 `gui.py`。
 - `split.py`/`split.sh` 处理的是 `music/*.wav`,与当前 `.ogg` 输出不匹配——视为已过时。
 - `untitled.py` 看起来是 pyuic5 生成的,但里面有手写的槽函数(`extract_apk_file`、`checkboxstate`)——**不要**从 `.ui` 文件重新生成。
