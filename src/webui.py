@@ -13,6 +13,7 @@ import threading
 
 from flask import Flask, jsonify, request
 
+import batch
 import gameInformation
 import phira
 import resource as resource_module
@@ -72,6 +73,7 @@ PAGE = """<!DOCTYPE html>
     <label><input type="checkbox" id="step-phira" checked> Phira 打包</label>
   </div>
   <button id="start">开始</button>
+  <button id="batch" style="background:#3a6b4f">批量处理 input/ 文件夹</button>
 </div>
 <div class="card">
   <div id="stage">空闲</div>
@@ -107,6 +109,12 @@ document.getElementById('start').onclick = async () => {
     steps: steps,
   };
   const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!j.ok) alert(j.error);
+  else refresh();
+};
+document.getElementById('batch').onclick = async () => {
+  const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ steps: ['batch'] }) });
   const j = await r.json();
   if (!j.ok) alert(j.error);
   else refresh();
@@ -169,12 +177,15 @@ def run_task(steps, apk_path, version):
     logger = build_task_logger()
     progress = WebProgress()
     try:
-        if "info" in steps:
-            gameInformation.run(apk_path, version, logger, progress)
-        if "resource" in steps:
-            resource_module.run(apk_path, version, load_config(), logger, progress)
-        if "phira" in steps:
-            phira.run(version, logger, progress)
+        if "batch" in steps:
+            batch.process_all(("info", "resource", "phira"), load_config(), logger, progress)
+        else:
+            if "info" in steps:
+                gameInformation.run(apk_path, version, logger, progress)
+            if "resource" in steps:
+                resource_module.run(apk_path, version, load_config(), logger, progress)
+            if "phira" in steps:
+                phira.run(version, logger, progress)
         with STATE_LOCK:
             STATE["done"] = True
     except SystemExit as e:
@@ -209,11 +220,12 @@ def api_run():
     data = request.get_json(force=True, silent=True) or {}
     apk_path = (data.get("apk") or "").strip().strip('"')
     version = (data.get("version") or "").strip() or None
-    steps = [s for s in data.get("steps", []) if s in ("info", "resource", "phira")]
+    steps = [s for s in data.get("steps", []) if s in ("info", "resource", "phira", "batch")]
 
     if not steps:
         return jsonify(ok=False, error="请至少选择一个步骤"), 400
-    needs_apk = any(s in ("info", "resource") for s in steps)
+    batch_mode = "batch" in steps
+    needs_apk = any(s in ("info", "resource") for s in steps) and not batch_mode
     if needs_apk:
         if not apk_path or not os.path.isfile(apk_path):
             return jsonify(ok=False, error="APK 路径不存在,请检查后重试"), 400
@@ -222,7 +234,7 @@ def api_run():
                 version = detect_version(apk_path)
             except SystemExit as e:
                 return jsonify(ok=False, error=str(e)), 400
-    elif version is None:
+    elif not batch_mode and version is None:
         versions = list_versions()
         if not versions:
             return jsonify(ok=False, error="outputs/ 下没有版本目录,请先提取"), 400
