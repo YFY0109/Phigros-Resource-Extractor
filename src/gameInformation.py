@@ -44,7 +44,7 @@ def read_typetree(obj, typetree_data, script_name, read_monobehaviour=False):
     try:
         return obj.read_typetree(typetree_data, read_monobehaviour)
     except Exception as e:
-        raise RuntimeError("解析 %s 失败,typetree.json 可能与游戏版本不匹配:%s" % (script_name, e))
+        raise RuntimeError("解析 %s 失败,typetree 可能与游戏版本不匹配:%s" % (script_name, e))
 
 
 def run(path, version, logger, progress=None):
@@ -92,7 +92,7 @@ def run(path, version, logger, progress=None):
     if game_information is None or collections is None or tips is None:
         raise RuntimeError(
             "APK 中缺少必要的 MonoBehaviour(GameInformation/GetCollectionControl/TipsProvider),"
-            "typetree.json 可能与游戏版本不匹配"
+            "typetree 可能与游戏版本不匹配"
         )
 
     difficulty = []

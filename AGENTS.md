@@ -2,7 +2,7 @@
 
 Phigros APK 资源提取工具(Unity 游戏)。纯 Python 脚本,无测试/lint/CI——验证方式就是拿真实的 Phigros APK 跑一遍脚本。
 
-源码统一位于 `src/`(`src/deprecated/` 为历史遗留,勿用);仓库根目录只放配置(`config.json`)、数据(`typetree.json`、`typetree/`)、动态库(`lib*.dll`)、产物(`outputs/`)与项目元数据。
+源码统一位于 `src/`(`src/deprecated/` 为历史遗留,勿用);仓库根目录只放配置(`config.json`)、数据(`typetree/`)、动态库(`lib*.dll`)、产物(`outputs/`)与项目元数据。
 
 ## 命令
 
