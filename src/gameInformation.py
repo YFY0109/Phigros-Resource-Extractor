@@ -18,17 +18,34 @@ from common import detect_version, version_dir
 from log import init_console_logger
 from progress import NULL_PROGRESS
 
-# typetree 目录:版本专属 <版本>.json 优先,未找到时回退 default.json
+# typetree 目录:版本专属 <版本>.json 优先,其次 index.json 的版本映射,最后回退 default.json
 TYPETREE_DIR = "typetree"
+TYPETREE_INDEX = os.path.join(TYPETREE_DIR, "index.json")
 DEFAULT_TYPETREE = os.path.join(TYPETREE_DIR, "default.json")
 
 
+def load_typetree_index():
+    """读取版本映射文件(如 {"3.19.5": "3.20.0.json"});不可用时返回空表。"""
+    try:
+        with open(TYPETREE_INDEX, encoding="utf8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def find_typetree(version, logger):
-    """按游戏版本查找 typetree 文件:typetree/<版本>.json 优先,回退默认文件。"""
+    """按游戏版本查找 typetree:专属文件 → index.json 映射 → default.json。"""
     versioned = os.path.join(TYPETREE_DIR, "%s.json" % version)
     if os.path.isfile(versioned):
         logger.info("使用版本专属 typetree: %s" % versioned)
         return versioned
+    mapped = load_typetree_index().get(version)
+    if mapped:
+        candidate = os.path.join(TYPETREE_DIR, mapped)
+        if os.path.isfile(candidate):
+            logger.info("使用版本映射的 typetree: %s -> %s" % (version, candidate))
+            return candidate
     logger.info("未找到 %s 的专属 typetree,使用默认 %s" % (version, DEFAULT_TYPETREE))
     return DEFAULT_TYPETREE
 
