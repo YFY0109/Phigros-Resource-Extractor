@@ -24,7 +24,7 @@ from rich.progress import (
 import gameInformation
 import phira
 import resource as resource_module
-from common import detect_version, load_config, save_config
+from common import detect_version, list_versions, load_config, save_config
 from progress import ProgressReporter
 
 console = Console()
@@ -183,6 +183,14 @@ def interactive(args):
             if not apk_path:
                 apk_path = ask_apk_path()
             version = resolve_version(apk_path, version)
+        elif version is None:
+            # 仅打包 Phira:未指定过版本时,默认取最新版本;无版本目录则询问
+            versions = list_versions()
+            if versions:
+                version = versions[0]
+                console.print("使用 outputs/ 下最新版本:%s" % version)
+            else:
+                version = Prompt.ask("outputs/ 下没有版本目录,请输入要打包的版本号(如 4.0.1)")
         execute(steps, apk_path, version, config, logger)
         Prompt.ask("按回车返回菜单", default="")
 
