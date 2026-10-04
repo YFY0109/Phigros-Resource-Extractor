@@ -29,7 +29,7 @@ uv run python phira.py [--version 版本]      # 3. 打包 outputs/<版本>/phir
 - `main.py` 已腐烂/无法运行(`from . import resource` 相对导入错误、旧接口签名),不要以它为范本;用 CLI 脚本或 `gui.py`。
 - `split.py`/`split.sh` 处理的是 `music/*.wav`,与当前 `.ogg` 输出不匹配——视为已过时。
 - `untitled.py` 看起来是 pyuic5 生成的,但里面有手写的槽函数(`extract_apk_file`、`checkboxstate`)——**不要**从 `.ui` 文件重新生成。
-- `typetree.json` 是 `gameInformation.py` 解析的 3 个 MonoBehaviour 脚本(各 8 个字段)的 Unity typetree 转储;它跟随游戏版本,游戏数据结构变更时必须同步更新。已实测:用 4.x 的 typetree 解析 3.20.0 APK 会抛 `ValueError: Can't read ... bytes`(`read_typetree` 处),跨版本提取必须使用对应版本的 typetree。
+- typetree 是 `gameInformation.py` 解析 MonoBehaviour 的核心数据:优先使用 `typetree/<完整版本>.json`(已内置 `typetree/3.20.0.json` 适配旧版),未找到则回退根目录 `typetree.json`(当前 4.0.x 所用);游戏更新后需重新生成并放入 `typetree/`,详见 `typetree/README.md`。版本不匹配时会抛 `ValueError: Can't read ... bytes`。
 - `gameInformation.py` 兼容两种 APK 布局:`assets/bin/Data/data.unity3d`,或旧版的 `globalgamemanagers.assets` + `level0`。
 - `resource.py` 对第九章谢幕曲(硬编码 id `WhatdoyouwantmorethanaHappyending...`)有独立分支,处理其四难度差分曲绘(`_EZ/_HD/_IN/_AT` 后缀);`phira.py` 的曲绘 fallback 也支持 `<曲ID>_<难度>.png` 命名。
 - 全量模式为每个资产新建 `Environment`,而增量模式(`[UPDATE]` 非零)所有选中资产共用一个 `Environment`——批量提取的内存行为不同。
