@@ -16,6 +16,12 @@ def _build_digest(size, head, tail):
     return digest.hexdigest()
 
 
+def buffer_size(data):
+    """内存数据的字节数(BytesIO 或 bytes)。"""
+    view = data.getbuffer() if isinstance(data, BytesIO) else memoryview(data)
+    return len(view)
+
+
 def digest_buffer(data, sample_bytes):
     """对内存中的数据(BytesIO 或 bytes)计算部分摘要。"""
     view = data.getbuffer() if isinstance(data, BytesIO) else memoryview(data)
@@ -63,7 +69,7 @@ class DedupeStore:
         self.written_files = 0
 
     def write(self, path, data):
-        source = self._find_duplicate(path, data)
+        source = self._find_duplicate(path, data, buffer_size(data))
         if source is not None and self._try_link(source, path):
             self.linked_files += 1
             self.linked_bytes += os.path.getsize(source)
@@ -71,7 +77,7 @@ class DedupeStore:
         write_file(path, data)
         self.written_files += 1
 
-    def _find_duplicate(self, path, data):
+    def _find_duplicate(self, path, data, size):
         """在其它版本中查找内容一致的对应文件,找不到返回 None。"""
         rel = os.path.relpath(path, self._base)
         if rel.startswith(".."):
@@ -79,7 +85,11 @@ class DedupeStore:
         new_digest = digest_buffer(data, self._sample_bytes)
         for version in self._other_versions:
             candidate = os.path.join(version_dir(version), rel)
-            if not os.path.isfile(candidate):
+            try:
+                # 大小预筛:大小不同直接跳过,省去读取文件头尾计算摘要
+                if os.path.getsize(candidate) != size:
+                    continue
+            except OSError:
                 continue
             try:
                 if digest_file(candidate, self._sample_bytes) == new_digest:
