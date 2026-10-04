@@ -3,7 +3,7 @@
 用法:
     uv run python src/webui.py [--host 127.0.0.1] [--port 8000]
 
-然后浏览器访问 http://127.0.0.1:8000(需要 `uv sync --extra web` 安装 Flask)。
+然后浏览器访问 http://127.0.0.1:8000。
 """
 import argparse
 import logging

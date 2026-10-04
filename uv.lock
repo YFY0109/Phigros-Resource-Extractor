@@ -514,24 +514,19 @@ name = "phigros-resource-extractor"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "flask" },
     { name = "fsb5" },
     { name = "rich" },
     { name = "unitypy" },
 ]
 
-[package.optional-dependencies]
-web = [
-    { name = "flask" },
-]
-
 [package.metadata]
 requires-dist = [
-    { name = "flask", marker = "extra == 'web'" },
+    { name = "flask" },
     { name = "fsb5" },
     { name = "rich" },
     { name = "unitypy", specifier = "==1.10.18" },
 ]
-provides-extras = ["web"]
 
 [[package]]
 name = "pillow"

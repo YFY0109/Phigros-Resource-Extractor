@@ -9,10 +9,8 @@ dependencies = [
     "UnityPy==1.10.18",
     "fsb5",
     "rich",
+    "flask",
 ]
-
-[project.optional-dependencies]
-web = ["flask"]
 
 [tool.uv]
 package = false

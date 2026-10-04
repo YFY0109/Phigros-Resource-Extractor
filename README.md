@@ -34,7 +34,7 @@
    uv run python src/webui.py   # 浏览器 WebUI:默认 http://127.0.0.1:8000
    ```
 
-   > WebUI 需要额外依赖:`uv sync --extra web`。TUI 也支持直跑,如 `uv run python src/tui.py --apk <路径> --all`。
+   > TUI 也支持直跑,如 `uv run python src/tui.py --apk <路径> --all`。
 
 3. 或按步骤命令行直跑:
 
