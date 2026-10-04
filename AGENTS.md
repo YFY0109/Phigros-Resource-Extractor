@@ -35,7 +35,7 @@ uv run python src/phira.py [--version 版本]      # 4. 打包 outputs/<版本>/
 - typetree 是 `src/gameInformation.py` 解析 MonoBehaviour 的核心数据:优先 `typetree/<完整版本>.json`(如 `3.20.0.json`),其次 `typetree/index.json` 的版本映射(如 `3.19.5` → `3.20.0.json`,结构相同的版本无需复制副本),最后回退 `typetree/default.json`(当前 4.0.x 所用);游戏更新后需重新生成并放入 `typetree/`,详见 `typetree/README.md`。版本不匹配时会抛 `ValueError: Can't read ... bytes`。
 - `src/gameInformation.py` 兼容两种 APK 布局:`assets/bin/Data/data.unity3d`,或旧版的 `globalgamemanagers.assets` + `level0`。
 - `src/resource.py` 对第九章谢幕曲(硬编码 id `WhatdoyouwantmorethanaHappyending...`)有独立分支,处理其四难度差分曲绘(`_EZ/_HD/_IN/_AT` 后缀);`phira.py` 的曲绘 fallback 也支持 `<曲ID>_<难度>.png` 命名。
-- 解锁动画是 Unity `VideoClip`:元数据在 `sharedassets*.assets`(3.x)或 `data.unity3d`(4.x),视频流数据存放在 `assets/bin/Data/sharedassets*.resource` 中,由 `m_ExternalResources` 的 offset/size 切分;`src/videos.py` 负责提取(3.x/4.x 布局均已适配,按内容自动命名 `.webm`/`.mp4`)。容器格式:3.x 为 WebM(VP8/Vorbis),4.0.1(第九章 Part 2)起为 MP4(H.264/AAC),与旧版内容不同、不参与硬链接。
+- 解锁动画是 Unity `VideoClip`,有两类存放形式:① `assets/bin/Data/` 内(3.x 元数据在 `sharedassets*.assets`、4.x 在 `data.unity3d`;视频流在 `sharedassets*.resource` 中按 `m_ExternalResources` 的 offset/size 切分);② **Addressables 资产包** `assets/aa/Android/*.bundle`(如第九章的 `c9.video.Entrance to the Chaos_Intro`,由 UnityPy 直接读出 `m_VideoData`)。`src/videos.py` 两者都会提取(全量扫描全部 bundle 约 6 秒/版本,按内容自动命名 `.webm`/`.mp4`)。容器格式:3.x 与 4.0.0 的章节视频为 WebM(VP8/Vorbis),4.0.1 起为 MP4(H.264/AAC),与旧版内容不同、不参与硬链接。
 - 全量模式为每个资产新建 `Environment`,而增量模式(`[UPDATE]` 非零)所有选中资产共用一个 `Environment`——批量提取的内存行为不同。
 - 日志统一用 `log.init_console_logger()`(`src/log.py` 在窄编码控制台下用 `errors="replace"` 兜底);新脚本不要用 `print` 输出中文——GBK 重定向下会抛 `UnicodeEncodeError`,若发生在 `try` 内会被误捕,导致业务逻辑被跳过(`phira.py` 曾有 46 个 pez 因此缺失)。
 

@@ -1,12 +1,16 @@
-"""从 Phigros APK 提取解锁动画视频(VideoClip → .webm)。
+"""从 Phigros APK 提取解锁动画视频(VideoClip → .webm/.mp4)。
 
 用法:
     python src/videos.py <Phigros APK 路径> [--version X.Y.Z]
 
-视频数据存放在 Unity 数据文件的 .resource 流中(sharedassets*.resource),
-由场景中的 VideoPlayer 通过 VideoClip 资产引用;本脚本按 VideoClip 的
-m_ExternalResources(m_Source/m_Offset/m_Size)精确切分,输出到
-outputs/<版本>/videos/<VideoClip 名>.webm。
+视频有两类存放形式:
+1. assets/bin/Data/ 内的 VideoClip:3.x 元数据在 sharedassets*.assets,
+   4.x 在 data.unity3d,视频流在 sharedassets*.resource 中按
+   m_ExternalResources(m_Source/m_Offset/m_Size)精确切分;
+2. Addressables 资产包(assets/aa/Android/*.bundle)中的 VideoClip,
+   如章节解锁动画(键名形如 c9.video.*),由 UnityPy 直接解出 m_VideoData。
+
+输出到 outputs/<版本>/videos/<VideoClip 名>.<webm/mp4>(按内容识别容器)。
 """
 import argparse
 import os
@@ -21,6 +25,7 @@ from log import init_console_logger
 from progress import NULL_PROGRESS
 
 DATA_PREFIX = "assets/bin/Data/"
+BUNDLE_PREFIX = "assets/aa/Android/"
 
 
 def _video_extension(data):
@@ -92,6 +97,54 @@ def find_video_clips(apk, logger):
     return clips
 
 
+def find_bundle_video_clips(apk, logger, progress=None):
+    """扫描 Addressables 资产包中的 VideoClip,返回 [{name, data, bundle}]。
+
+    章节解锁动画等视频以独立 bundle 分发(assets/aa/Android/*.bundle),
+    UnityPy 会沿 VideoClip 的 m_ExternalResources 直接解出视频字节。
+    """
+    progress = progress or NULL_PROGRESS
+    names = [n for n in apk.namelist()
+             if n.startswith(BUNDLE_PREFIX) and n.endswith(".bundle")]
+    clips = []
+    failed = 0
+    for name in names:
+        progress.check_cancelled()
+        try:
+            env = Environment()
+            env.load_file(BytesIO(apk.read(name)), name=name)
+            for obj in env.objects:
+                if obj.type.name != "VideoClip":
+                    continue
+                try:
+                    video = obj.read()
+                except Exception as e:
+                    logger.warning("bundle 视频读取失败 %s: %s", os.path.basename(name), e)
+                    continue
+                clips.append({
+                    "name": str(video.m_Name or "video"),
+                    "data": bytes(video.m_VideoData or b""),
+                    "bundle": name,
+                })
+        except Exception:
+            failed += 1
+            logger.debug("bundle 解析失败,已跳过: %s", name, exc_info=True)
+    if failed:
+        logger.warning("有 %d 个 bundle 解析失败,已跳过", failed)
+    return clips
+
+
+def _save_clip(store, output_dir, name, data, logger):
+    """写入一段视频(去重开启时经 DedupeStore 处理)。"""
+    safe_name = "".join(ch if (ch.isalnum() or ch in "._-") else "_" for ch in name)
+    path = os.path.join(output_dir, safe_name + _video_extension(data))
+    if store is not None:
+        store.write(path, data)
+    else:
+        write_file(path, data)
+    logger.info("已提取: %s(%.2f MB)", safe_name, len(data) / 1024 / 1024)
+
+
 def run(apk_path, version, logger, progress=None):
     """提取指定 APK 中的所有解锁动画视频;返回提取数量。"""
     progress = progress or NULL_PROGRESS
@@ -107,7 +160,8 @@ def run(apk_path, version, logger, progress=None):
         names = apk.namelist()
         progress.start("扫描解锁动画", total=None)
         clips = find_video_clips(apk, logger)
-        progress.start("提取解锁动画", total=len(clips))
+        bundle_clips = find_bundle_video_clips(apk, logger, progress)
+        progress.start("提取解锁动画", total=len(clips) + len(bundle_clips))
         created = 0
         for clip in clips:
             progress.check_cancelled()
@@ -121,13 +175,12 @@ def run(apk_path, version, logger, progress=None):
             except Exception as e:
                 logger.warning("视频数据读取失败 %s: %s", clip["name"], e)
                 continue
-            safe_name = "".join(ch if (ch.isalnum() or ch in "._-") else "_" for ch in clip["name"])
-            path = os.path.join(output_dir, safe_name + _video_extension(data))
-            if store is not None:
-                store.write(path, data)
-            else:
-                write_file(path, data)
-            logger.info("已提取: %s(%.2f MB)", safe_name, len(data) / 1024 / 1024)
+            _save_clip(store, output_dir, clip["name"], data, logger)
+            created += 1
+            progress.advance(clip["name"])
+        for clip in bundle_clips:
+            progress.check_cancelled()
+            _save_clip(store, output_dir, clip["name"], clip["data"], logger)
             created += 1
             progress.advance(clip["name"])
 
