@@ -13,7 +13,8 @@ uv sync
 uv run python src/tui.py                         # 交互式 TUI(rich 进度条);直跑:`--apk <路径> --all`
 uv run python src/gameInformation.py <apk路径>   # 1. 生成 outputs/<版本>/info/
 uv run python src/resource.py <apk路径>          # 2. 生成 outputs/<版本>/{avatars,charts,illustrations,illustrationsBlur,illustrationsLowRes,music}/
-uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/phira/<曲目>/<难度>.pez(默认最新版本)
+uv run python src/videos.py <apk路径>            # 3. 生成 outputs/<版本>/videos/(解锁动画 VideoClip → .webm)
+uv run python src/phira.py [--version 版本]      # 4. 打包 outputs/<版本>/phira/<曲目>/<难度>.pez(默认最新版本)
 ```
 
 - 版本号默认读取 APK 内 `AndroidManifest.xml` 的 `versionName`(`src/apkmeta.py`,基于 `apkutils`;失败时才回退文件名),可用 `--version` 覆盖;各脚本的版本必须一致。
@@ -34,6 +35,7 @@ uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/
 - typetree 是 `src/gameInformation.py` 解析 MonoBehaviour 的核心数据:优先 `typetree/<完整版本>.json`(如 `3.20.0.json`),其次 `typetree/index.json` 的版本映射(如 `3.19.5` → `3.20.0.json`,结构相同的版本无需复制副本),最后回退 `typetree/default.json`(当前 4.0.x 所用);游戏更新后需重新生成并放入 `typetree/`,详见 `typetree/README.md`。版本不匹配时会抛 `ValueError: Can't read ... bytes`。
 - `src/gameInformation.py` 兼容两种 APK 布局:`assets/bin/Data/data.unity3d`,或旧版的 `globalgamemanagers.assets` + `level0`。
 - `src/resource.py` 对第九章谢幕曲(硬编码 id `WhatdoyouwantmorethanaHappyending...`)有独立分支,处理其四难度差分曲绘(`_EZ/_HD/_IN/_AT` 后缀);`phira.py` 的曲绘 fallback 也支持 `<曲ID>_<难度>.png` 命名。
+- 解锁动画是 Unity `VideoClip`(WebM/VP8):元数据在 `sharedassets*.assets`(3.x)或 `data.unity3d`(4.x),视频流数据存放在 `assets/bin/Data/sharedassets*.resource` 中,由 `m_ExternalResources` 的 offset/size 切分;`src/videos.py` 负责提取(3.x/4.x 布局均已适配)。4.0.1 起视频内容与旧版不同(重刷),不会与旧版本硬链接。
 - 全量模式为每个资产新建 `Environment`,而增量模式(`[UPDATE]` 非零)所有选中资产共用一个 `Environment`——批量提取的内存行为不同。
 - 日志统一用 `log.init_console_logger()`(`src/log.py` 在窄编码控制台下用 `errors="replace"` 兜底);新脚本不要用 `print` 输出中文——GBK 重定向下会抛 `UnicodeEncodeError`,若发生在 `try` 内会被误捕,导致业务逻辑被跳过(`phira.py` 曾有 46 个 pez 因此缺失)。
 

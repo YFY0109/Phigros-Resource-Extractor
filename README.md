@@ -15,6 +15,7 @@
 | 模糊曲绘 | `outputs/<版本>/illustrationsBlur/` | PNG |
 | 低质量曲绘 | `outputs/<版本>/illustrationsLowRes/` | PNG |
 | 音乐文件 | `outputs/<版本>/music/` | OGG |
+| 解锁动画视频 | `outputs/<版本>/videos/` | WebM(VP8,来自游戏 VideoClip) |
 | Phira 自制谱 | `outputs/<版本>/phira/<曲目>/` | `<难度>.pez` |
 
 ## 批量处理(input/)
@@ -55,6 +56,7 @@ uv run python src/tui.py --input
    ```sh
    uv run python src/gameInformation.py <Phigros APK 路径>   # 提取游戏信息
    uv run python src/resource.py <Phigros APK 路径>          # 提取资源
+   uv run python src/videos.py <Phigros APK 路径>            # 提取解锁动画视频(可选)
    uv run python src/phira.py                                # 打包 Phira 自制谱
    ```
 
