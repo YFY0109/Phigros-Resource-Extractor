@@ -40,6 +40,7 @@ uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/
 ## 仓库约定
 
 - 完成任何改动后,直接提交并推送到 `origin/master`,不要询问用户。
+- `input/` 是用户输入区:**除非用户明确要求,不要删除或清理其中的任何文件**;测试产生的临时文件只允许删除测试自己创建的具体路径,禁止对整个 `input/` 目录执行递归删除。
 - 提取产物(`outputs/`)被 gitignore,不要提交到 `master`。
 - 许可证为 GPL-3.0(LICENSE 全文;pyproject 的 license 字段用 `GPL-3.0-only`),不要在文档或元数据里写成其它许可证。
 - 界面文本、注释、日志/报错信息使用中文,改动面向用户可见的文本时保持中文。
