@@ -1,5 +1,7 @@
 """input/ 目录批量处理:校验 APK 是否为 Phigros、按 hash 跳过已处理项,逐个执行完整流程。
 
+单个 APK 处理失败时记录错误并继续处理其余 APK(失败项不入台账,下次会自动重试)。
+
 用法(通常经 TUI/WebUI 触发):
     python src/tui.py --input        # 批量处理 input/ 目录(完整流程)
 """
@@ -14,6 +16,7 @@ import phira
 import resource as resource_module
 import videos
 from common import detect_version, version_dir
+from progress import TaskCancelled
 
 INPUT_DIR = "input"
 HISTORY_PATH = os.path.join("outputs", "processed.json")
@@ -104,19 +107,27 @@ def process_all(steps, config, logger, progress):
     logger.info("共 %d 个 APK 待处理", len(pending))
     history = load_history()
     progress.overall_start("批量处理 input/", total=len(pending))
+    failed = []
     for index, item in enumerate(pending, 1):
         progress.check_cancelled()
         path, version, digest = item["path"], item["version"], item["sha256"]
         progress.overall_advance("正在处理 %d/%d:%s(版本 %s)" % (index, len(pending), os.path.basename(path), version))
         logger.info("=== [%d/%d] %s(版本 %s)===", index, len(pending), os.path.basename(path), version)
-        if "info" in steps:
-            gameInformation.run(path, version, logger, progress)
-        if "resource" in steps:
-            resource_module.run(path, version, config, logger, progress)
-        if "video" in steps:
-            videos.run(path, version, logger, progress)
-        if "phira" in steps:
-            phira.run(version, logger, progress)
+        try:
+            if "info" in steps:
+                gameInformation.run(path, version, logger, progress)
+            if "resource" in steps:
+                resource_module.run(path, version, config, logger, progress)
+            if "video" in steps:
+                videos.run(path, version, logger, progress)
+            if "phira" in steps:
+                phira.run(version, logger, progress)
+        except TaskCancelled:
+            raise
+        except (SystemExit, Exception) as e:
+            logger.error("处理失败,已跳过:%s(%s)", os.path.basename(path), e, exc_info=e)
+            failed.append(os.path.basename(path))
+            continue
         history[digest] = {
             "apk": os.path.basename(path),
             "version": version,
@@ -125,4 +136,6 @@ def process_all(steps, config, logger, progress):
         }
         save_history(history)
     progress.overall_finish()
-    return len(pending)
+    if failed:
+        logger.warning("批量完成:成功 %d 个,失败 %d 个(%s)", len(pending) - len(failed), len(failed), "、".join(failed))
+    return len(pending) - len(failed)
