@@ -30,6 +30,10 @@ STATE = {
     "cancelled": False,
     "cancel_requested": False,
     "error": None,
+    "overall_stage": "",
+    "overall_current": 0,
+    "overall_total": 0,
+    "overall_message": "",
     "stage": "",
     "current": 0,
     "total": 0,
@@ -56,6 +60,7 @@ PAGE = """<!DOCTYPE html>
   button:disabled { background: #444; cursor: default; }
   .bar-outer { background: #1b1b21; border-radius: 6px; height: 18px; overflow: hidden; margin: 10px 0; }
   #bar { background: linear-gradient(90deg, #4a7dff, #7aa2ff); height: 100%; width: 0; transition: width .3s; }
+  #overall { font-size: 13px; color: #8ab4f8; margin-bottom: 6px; min-height: 16px; }
   #stage { font-size: 15px; font-weight: 600; }
   #count, #message { font-size: 13px; color: #9aa0b0; margin-top: 4px; }
   pre#logs { background: #111116; border-radius: 10px; padding: 12px; height: 320px; overflow: auto; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
@@ -80,6 +85,7 @@ PAGE = """<!DOCTYPE html>
   <button id="cancel" style="background:#8a4a3a">取消任务</button>
 </div>
 <div class="card">
+  <div id="overall"></div>
   <div id="stage">空闲</div>
   <div class="bar-outer"><div id="bar"></div></div>
   <div id="count"></div>
@@ -90,6 +96,8 @@ PAGE = """<!DOCTYPE html>
 async function refresh() {
   try {
     const s = await (await fetch('/api/status')).json();
+    const ov = s.overall_stage ? (s.overall_stage + (s.overall_total ? '  ' + (s.overall_current || 0) + ' / ' + s.overall_total : '') + (s.overall_message ? '  ' + s.overall_message : '')) : '';
+    document.getElementById('overall').textContent = ov;
     document.getElementById('stage').textContent = s.error ? ('出错:' + s.error) : (s.cancelled ? '已取消' : (s.done ? '完成' : (s.stage || '空闲')));
     const total = s.total || 0, cur = s.current || 0;
     const pct = total > 0 ? Math.min(100, Math.round(cur / total * 100)) : (s.running ? 100 : 0);
@@ -162,6 +170,19 @@ class WebProgress(ProgressReporter):
     def cancelled(self):
         with STATE_LOCK:
             return bool(STATE.get("cancel_requested"))
+
+    def overall_start(self, description, total=None):
+        with STATE_LOCK:
+            STATE.update(overall_stage=description, overall_current=0, overall_total=total or 0, overall_message="")
+
+    def overall_advance(self, message=""):
+        with STATE_LOCK:
+            STATE["overall_current"] += 1
+            STATE["overall_message"] = message
+
+    def overall_finish(self, message=""):
+        with STATE_LOCK:
+            STATE["overall_message"] = message or STATE.get("overall_message", "")
 
     def start(self, description, total=None):
         with STATE_LOCK:
@@ -272,7 +293,8 @@ def api_run():
             return jsonify(ok=False, error="已有任务在运行,请等待完成"), 409
         STATE.update(
             running=True, done=False, cancelled=False, cancel_requested=False,
-            error=None, stage="准备中", current=0, total=0, message="", version=version, logs=[],
+            error=None, overall_stage="", overall_current=0, overall_total=0, overall_message="",
+            stage="准备中", current=0, total=0, message="", version=version, logs=[],
         )
     threading.Thread(target=run_task, args=(steps, apk_path, version), daemon=True).start()
     return jsonify(ok=True, version=version)

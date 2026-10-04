@@ -102,9 +102,11 @@ def process_all(steps, config, logger, progress):
         return 0
     logger.info("共 %d 个 APK 待处理", len(pending))
     history = load_history()
+    progress.overall_start("批量处理 input/", total=len(pending))
     for index, item in enumerate(pending, 1):
         progress.check_cancelled()
         path, version, digest = item["path"], item["version"], item["sha256"]
+        progress.overall_advance("正在处理 %d/%d:%s(版本 %s)" % (index, len(pending), os.path.basename(path), version))
         logger.info("=== [%d/%d] %s(版本 %s)===", index, len(pending), os.path.basename(path), version)
         if "info" in steps:
             gameInformation.run(path, version, logger, progress)
@@ -119,4 +121,5 @@ def process_all(steps, config, logger, progress):
             "processed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
         save_history(history)
+    progress.overall_finish()
     return len(pending)

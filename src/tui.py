@@ -34,36 +34,49 @@ STEPS = ("info", "resource", "phira")
 
 
 class RichProgress(ProgressReporter):
-    """把进度事件映射到 rich 的多任务进度条。"""
+    """把进度事件映射到 rich:批量总进度一行、当前阶段一行(阶段间复用同一行)。
+
+    阶段/总任务完成时移除对应行,避免残留进度条与旋转动画。
+    """
 
     def __init__(self, progress):
         self._progress = progress
-        self._task = None
+        self._overall_task = None
+        self._stage_task = None
         self._stage = ""
 
+    def overall_start(self, description, total=None):
+        self._overall_task = self._progress.add_task(escape(description), total=total)
+
+    def overall_advance(self, message=""):
+        if self._overall_task is not None:
+            self._progress.update(self._overall_task, advance=1, description=escape(message))
+
+    def overall_finish(self, message=""):
+        if self._overall_task is not None:
+            self._progress.remove_task(self._overall_task)
+            self._overall_task = None
+
     def start(self, description, total=None):
-        self._end_task()
         self._stage = description
-        self._task = self._progress.add_task(escape(description), total=total)
+        if self._stage_task is None:
+            self._stage_task = self._progress.add_task(escape(description), total=total)
+        else:
+            self._progress.update(self._stage_task, description=escape(description), total=total, completed=0)
 
     def advance(self, message=""):
-        if self._task is None:
+        if self._stage_task is None:
             return
         text = escape(self._stage)
         if message:
             label = message if len(message) <= 64 else message[:61] + "..."
             text = "%s  [dim]%s[/dim]" % (text, escape(label))
-        self._progress.update(self._task, advance=1, description=text)
+        self._progress.update(self._stage_task, advance=1, description=text)
 
     def finish(self, message=""):
-        if self._task is not None and message:
-            self._progress.update(self._task, description="%s  [green]%s[/green]" % (escape(self._stage), escape(message)))
-        self._end_task()
-
-    def _end_task(self):
-        if self._task is not None:
-            self._progress.stop_task(self._task)
-            self._task = None
+        if self._stage_task is not None:
+            self._progress.remove_task(self._stage_task)
+            self._stage_task = None
 
 
 def make_rich_logger():
