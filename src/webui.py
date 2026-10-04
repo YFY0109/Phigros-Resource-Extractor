@@ -19,7 +19,8 @@ import gameInformation
 import phira
 import resource as resource_module
 import videos
-from common import detect_version, list_versions, load_config
+from common import APK_STEPS, STEPS, detect_version, list_versions, load_config
+from log import init_console_logger
 from progress import ProgressReporter, TaskCancelled
 
 app = Flask(__name__)
@@ -216,7 +217,7 @@ def run_task(steps, apk_path, version):
     progress = WebProgress()
     try:
         if "batch" in steps:
-            batch.process_all(("info", "resource", "video", "phira"), load_config(), logger, progress)
+            batch.process_all(STEPS, load_config(), logger, progress)
         else:
             if "info" in steps:
                 gameInformation.run(apk_path, version, logger, progress)
@@ -273,12 +274,12 @@ def api_run():
     data = request.get_json(force=True, silent=True) or {}
     apk_path = (data.get("apk") or "").strip().strip('"')
     version = (data.get("version") or "").strip() or None
-    steps = [s for s in data.get("steps", []) if s in ("info", "resource", "video", "phira", "batch")]
+    steps = [s for s in data.get("steps", []) if s in STEPS + ("batch",)]
 
     if not steps:
         return jsonify(ok=False, error="请至少选择一个步骤"), 400
     batch_mode = "batch" in steps
-    needs_apk = any(s in ("info", "resource", "video") for s in steps) and not batch_mode
+    needs_apk = any(s in APK_STEPS for s in steps) and not batch_mode
     if needs_apk:
         if not apk_path or not os.path.isfile(apk_path):
             return jsonify(ok=False, error="APK 路径不存在,请检查后重试"), 400
@@ -331,10 +332,11 @@ def find_available_port(host, preferred):
 def main():
     config = load_config()
     args = parse_args(config)
+    logger = init_console_logger("webui")
     port = find_available_port(args.host, args.port)
     if port != args.port:
-        print("端口 %d 被占用,已改用 %d" % (args.port, port))
-    print("请用浏览器访问 http://%s:%d" % (args.host, port))
+        logger.warning("端口 %d 被占用,已改用 %d", args.port, port)
+    logger.info("请用浏览器访问 http://%s:%d", args.host, port)
     app.run(host=args.host, port=port)
 
 
