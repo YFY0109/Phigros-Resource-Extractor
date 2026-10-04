@@ -16,7 +16,7 @@ uv run python src/resource.py <apk路径>          # 2. 生成 outputs/<版本>/
 uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/phira/<曲目>/<难度>.pez(默认最新版本)
 ```
 
-- 版本号默认读取 APK 内 `AndroidManifest.xml` 的 `versionName`(`src/apkmeta.py` 纯 Python 解析 AXML;失败时才回退文件名),可用 `--version` 覆盖;各脚本的版本必须一致。
+- 版本号默认读取 APK 内 `AndroidManifest.xml` 的 `versionName`(`src/apkmeta.py`,基于 `apkutils`;失败时才回退文件名),可用 `--version` 覆盖;各脚本的版本必须一致。
 - 顺序有硬依赖:`resource.py` 增量模式要读 `outputs/<版本>/info/difficulty.csv`,必须先跑 `gameInformation.py`。
 - 验证:`uv run pytest`(单元测试,无需 APK);完整验证需要真实 APK。
 - APK 路径为必填参数,由用户显式提供(已移除 Android 自动定位)。
