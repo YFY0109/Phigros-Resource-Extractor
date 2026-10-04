@@ -24,6 +24,12 @@ RESOURCE_DIRS = {
     "music": "music",
 }
 
+# 提取流程的步骤(顺序即执行顺序;新增步骤时只改这里,各入口共用)
+STEPS = ("info", "resource", "video", "phira")
+
+# 需要读取 APK 的步骤
+APK_STEPS = ("info", "resource", "video")
+
 # 默认配置;load_config 会与用户配置递归合并(用户配置优先)
 DEFAULT_CONFIG = {
     "types": {

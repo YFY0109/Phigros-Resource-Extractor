@@ -27,12 +27,10 @@ import gameInformation
 import phira
 import resource as resource_module
 import videos
-from common import detect_version, list_versions, load_config, save_config
+from common import APK_STEPS, STEPS, detect_version, list_versions, load_config, save_config
 from progress import ProgressReporter
 
 console = Console()
-
-STEPS = ("info", "resource", "video", "phira")
 
 
 class RichProgress(ProgressReporter):
@@ -157,7 +155,7 @@ def execute_batch(config, logger):
             TimeElapsedColumn(),
             console=console,
         ) as progress:
-            count = batch.process_all(("info", "resource", "video", "phira"), config, logger, RichProgress(progress))
+            count = batch.process_all(STEPS, config, logger, RichProgress(progress))
         console.print("[bold green]批量处理完成,共 %d 个 APK[/bold green]" % count)
     except KeyboardInterrupt:
         console.print("[bold yellow]已取消[/bold yellow]")
@@ -222,13 +220,13 @@ def interactive(args):
             continue
 
         steps = {
-            "1": ("info", "resource", "video", "phira"),
-            "2": ("info",),
-            "3": ("resource",),
-            "4": ("video",),
-            "5": ("phira",),
+            "1": set(STEPS),
+            "2": {"info"},
+            "3": {"resource"},
+            "4": {"video"},
+            "5": {"phira"},
         }[choice]
-        if steps & {"info", "resource", "video"}:
+        if steps & set(APK_STEPS):
             if not apk_path:
                 apk_path = ask_apk_path()
             version = resolve_version(apk_path, version)
@@ -273,11 +271,11 @@ def main():
         interactive(args)
         return
 
-    if steps & {"info", "resource", "video"} and not args.apk:
+    if steps & set(APK_STEPS) and not args.apk:
         console.print("[red]该步骤需要 --apk 提供 APK 路径[/red]")
         raise SystemExit(1)
-    version = resolve_version(args.apk, args.version) if steps & {"info", "resource", "video"} else args.version
-    if "phira" in steps and not version and not (steps & {"info", "resource", "video"}):
+    version = resolve_version(args.apk, args.version) if steps & set(APK_STEPS) else args.version
+    if "phira" in steps and not version and not (steps & set(APK_STEPS)):
         raise SystemExit("仅打包时需要 --version 指定版本号")
     execute(steps, args.apk, version, load_config(), make_rich_logger())
 
