@@ -47,7 +47,7 @@ def test_find_pending_and_history(tmp_path, monkeypatch):
     _make_apk(input_dir / "Phigros_1.0.0.apk", [batch.CATALOG_PATH, batch.DATA_PATHS[0]])
 
     monkeypatch.setattr(batch, "INPUT_DIR", str(input_dir))
-    monkeypatch.setattr(batch, "HISTORY_PATH", str(tmp_path / "outputs" / ".processed.json"))
+    monkeypatch.setattr(batch, "HISTORY_PATH", str(tmp_path / "outputs" / "processed.json"))
     monkeypatch.setattr(common, "OUTPUT_ROOT", str(tmp_path / "outputs"))
 
     logger = _logger()

@@ -28,7 +28,7 @@ uv run python src/tui.py --input
 也可以在 TUI 菜单选择「批量处理 input/ 文件夹」,或在 WebUI 点击同名按钮。批量流程会:
 
 - 校验 APK 是否为 Phigros(检查 Addressables 目录与 Unity 数据文件),非 Phigros 文件自动跳过;
-- 计算完整 SHA-256,已处理过的 APK(见 `outputs/.processed.json` 台账)不会重复处理;
+- 计算完整 SHA-256,已处理过的 APK(见 `outputs/processed.json` 台账)不会重复处理;
 - 对每个新 APK 执行完整流程(信息 → 资源 → Phira 打包)。
 
 ## 使用方法

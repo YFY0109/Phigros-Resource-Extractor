@@ -15,7 +15,7 @@ import resource as resource_module
 from common import detect_version, version_dir
 
 INPUT_DIR = "input"
-HISTORY_PATH = os.path.join("outputs", ".processed.json")
+HISTORY_PATH = os.path.join("outputs", "processed.json")
 
 # Phigros APK 的特征文件(Unity Addressables 结构)
 CATALOG_PATH = "assets/aa/catalog.json"
@@ -49,7 +49,7 @@ def sha256_file(path, chunk_size=1024 * 1024):
 
 
 def load_history():
-    """读取已处理台账(outputs/.processed.json):{sha256: 记录}。"""
+    """读取已处理台账(outputs/processed.json):{sha256: 记录}。"""
     try:
         with open(HISTORY_PATH, encoding="utf8") as f:
             history = json.load(f)

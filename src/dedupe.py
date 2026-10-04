@@ -2,7 +2,7 @@
 与 outputs/ 下其他版本的同名文件比对;内容一致则创建硬链接以节省空间,
 系统不支持硬链接(跨卷、文件系统限制等)时自动回退为普通写入。
 
-每个版本目录内维护 .dedupe.json 摘要缓存(相对路径 -> "大小:摘要"):
+每个版本目录内维护 manifest.json 摘要缓存(相对路径 -> "大小:摘要"):
 对比旧版本时优先查缓存,未命中才读取文件计算,并把结果补写回缓存,
 避免版本增多后反复读取旧文件重新计算摘要。
 """
@@ -13,9 +13,8 @@ from io import BytesIO
 
 from common import list_versions, version_dir
 
-# 摘要缓存文件名(存放于各版本目录内);旧版本目录中的 .dedupe.json 仍可被读取
+# 摘要缓存文件名(存放于各版本目录内)
 MANIFEST_NAME = "manifest.json"
-LEGACY_MANIFEST_NAME = ".dedupe.json"
 
 
 def _build_digest(size, head, tail):
@@ -68,7 +67,7 @@ class DedupeStore:
     内容一致时尝试创建硬链接(多个版本共享同一份数据块);
     创建失败(如跨卷、文件系统不支持)或不一致时回退为普通写入。
 
-    摘要缓存在各版本目录的 .dedupe.json 中:
+    摘要缓存在各版本目录的 manifest.json 中:
     - 提取结束时记录本版本所有输出文件的摘要;
     - 对比旧版本时优先查缓存,未命中才读取文件计算并补记,下次即可直接命中。
     """
@@ -150,16 +149,14 @@ class DedupeStore:
         if version in self._catalogs:
             return self._catalogs[version]
         catalog = None
-        for name in (MANIFEST_NAME, LEGACY_MANIFEST_NAME):
-            path = os.path.join(version_dir(version), name)
-            try:
-                with open(path, encoding="utf8") as f:
-                    data = json.load(f)
-                if data.get("sample_bytes") == self._sample_bytes and isinstance(data.get("files"), dict):
-                    catalog = data["files"]
-                    break
-            except (OSError, ValueError):
-                continue
+        path = os.path.join(version_dir(version), MANIFEST_NAME)
+        try:
+            with open(path, encoding="utf8") as f:
+                data = json.load(f)
+            if data.get("sample_bytes") == self._sample_bytes and isinstance(data.get("files"), dict):
+                catalog = data["files"]
+        except (OSError, ValueError):
+            catalog = None
         self._catalogs[version] = catalog
         return catalog
 
@@ -179,7 +176,7 @@ class DedupeStore:
             return False
 
     def flush(self):
-        """把本次新计算的摘要合并写回各版本的 .dedupe.json 缓存。"""
+        """把本次新计算的摘要合并写回各版本的 manifest.json 缓存。"""
         self._write_manifest(self._current_version, self._new_entries)
         for version, entries in self._pending.items():
             self._write_manifest(version, entries)
@@ -189,16 +186,13 @@ class DedupeStore:
             return
         path = os.path.join(version_dir(version), MANIFEST_NAME)
         manifest = {"sample_bytes": self._sample_bytes, "files": {}}
-        for name in (MANIFEST_NAME, LEGACY_MANIFEST_NAME):
-            source = os.path.join(version_dir(version), name)
-            try:
-                with open(source, encoding="utf8") as f:
-                    existing = json.load(f)
-                if existing.get("sample_bytes") == self._sample_bytes and isinstance(existing.get("files"), dict):
-                    manifest = existing
-                    break
-            except (OSError, ValueError):
-                continue
+        try:
+            with open(path, encoding="utf8") as f:
+                existing = json.load(f)
+            if existing.get("sample_bytes") == self._sample_bytes and isinstance(existing.get("files"), dict):
+                manifest = existing
+        except (OSError, ValueError):
+            pass
         manifest["sample_bytes"] = self._sample_bytes
         manifest["files"].update(entries)
         try:
@@ -206,14 +200,6 @@ class DedupeStore:
                 json.dump(manifest, f, ensure_ascii=False, separators=(",", ":"))
         except OSError as e:
             self._logger.warning("写入摘要缓存失败: %s (%s)", path, e)
-            return
-        # 迁移完成:移除旧缓存文件
-        legacy = os.path.join(version_dir(version), LEGACY_MANIFEST_NAME)
-        if os.path.isfile(legacy):
-            try:
-                os.remove(legacy)
-            except OSError:
-                pass
 
     def report(self):
         cache_info = "摘要缓存命中 %d 次/实时计算 %d 次" % (self.cache_compared, self.cache_computes)
