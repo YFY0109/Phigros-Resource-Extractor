@@ -29,7 +29,7 @@ uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/
 - `config.json` 的 `types` 控制提取的资源类型。`update` 计数全为 `0` 表示全量提取;否则只提取各分类最新 N 首(主线/单曲/支线按 `src/resource.py` 中 `MAIN_STORY_END`、`OTHER_SONG_END` 两个锚点曲 ID 分段,锚点跟随游戏曲目表,游戏更新后可能需要调整)。
 - 资源类型到输出目录的映射集中在 `src/common.py` 的 `RESOURCE_DIRS`,`resource.py` 写入与 `phira.py` 读取共用,不要再硬编码目录名。
 - `info/` 下的表格类数据为 CSV(`difficulty/info/collection/tmp`,UTF-8 带 BOM、Excel 友好;`gameInformation.py` 写,`resource.py`/`phira.py` 读,读取用 `utf-8-sig` 兼容 BOM);单列列表(`single/illustration/avatar/tips`)保持 txt。
-- 跨版本去重在 `src/dedupe.py`:对 `outputs/` 下其他版本的同名文件按"文件大小 + 头尾各 `sample_bytes` 字节"计算 blake2b 摘要,一致则硬链接,否则正常写入;硬链接失败自动回退。摘要缓存于各版本目录的 `.dedupe.json`(对比优先走缓存,未命中才读文件并补写),配置在 `config.json` 的 `dedupe`。注意硬链接文件是多版本共享的只读产物,不要原地修改。
+- 跨版本去重在 `src/dedupe.py`:对 `outputs/` 下其他版本的同名文件按"文件大小 + 头尾各 `sample_bytes` 字节"计算 blake2b 摘要,一致则硬链接,否则正常写入;硬链接失败自动回退。摘要缓存于各版本目录的 `manifest.json`(对比优先走缓存,未命中才读文件并补写;兼容读取旧名 `.dedupe.json`),配置在 `config.json` 的 `dedupe`。注意硬链接文件是多版本共享的只读产物,不要原地修改。
 - `src/deprecated/` 下的脚本已损坏或过时(旧 tkinter/PyQt 界面、音频切分工具),仅作历史参考,不要使用。
 - typetree 是 `src/gameInformation.py` 解析 MonoBehaviour 的核心数据:优先使用 `typetree/<完整版本>.json`(已内置 `typetree/3.20.0.json` 适配旧版),未找到则回退 `typetree/default.json`(当前 4.0.x 所用);游戏更新后需重新生成并放入 `typetree/`,详见 `typetree/README.md`。版本不匹配时会抛 `ValueError: Can't read ... bytes`。
 - `src/gameInformation.py` 兼容两种 APK 布局:`assets/bin/Data/data.unity3d`,或旧版的 `globalgamemanagers.assets` + `level0`。
