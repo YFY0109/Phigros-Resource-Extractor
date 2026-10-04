@@ -65,7 +65,8 @@ class DedupeStore:
     """把新文件与 outputs/ 下其他版本的同名文件对比后写入。
 
     内容一致时尝试创建硬链接(多个版本共享同一份数据块);
-    创建失败(如跨卷、文件系统不支持)或不一致时回退为普通写入。
+    创建失败(如跨卷、文件系统不支持)或不一致时回退为普通写入
+    (写入前先删除已有目标,避免经硬链接连带改写其它版本)。
 
     摘要缓存在各版本目录的 manifest.json 中:
     - 提取结束时记录本版本所有输出文件的摘要;
@@ -101,6 +102,7 @@ class DedupeStore:
             self.linked_files += 1
             self.linked_bytes += os.path.getsize(source)
             return
+        self._remove_target(path)
         write_file(path, data)
         self.written_files += 1
 
@@ -174,6 +176,19 @@ class DedupeStore:
             return True
         except OSError:
             return False
+
+    def _remove_target(self, path):
+        """普通写入前删除已存在的目标文件。
+
+        目标可能是与其它版本共享的硬链接,直接覆盖会连带改写其它版本;
+        先删除只是断开当前版本的目录项,其它版本的数据不受影响。
+        """
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            self._logger.warning("无法删除已存在的文件,可能连带影响其它版本: %s (%s)", path, e)
 
     def flush(self):
         """把本次新计算的摘要合并写回各版本的 manifest.json 缓存。"""

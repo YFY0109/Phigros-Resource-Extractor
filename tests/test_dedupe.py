@@ -73,3 +73,32 @@ def test_dedupe_links_and_caches(tmp_path, monkeypatch):
     assert store2.linked_files == 1
     assert store2.cache_compared > 0
     assert store2.cache_computes == 0
+
+
+def test_dedupe_write_does_not_touch_linked_sibling(tmp_path, monkeypatch):
+    """同版本重刷为不同内容时,不得连带改写其它版本的硬链接文件。"""
+    monkeypatch.setattr(common, "OUTPUT_ROOT", str(tmp_path / "outputs"))
+    payload = b"same-content" * 100
+
+    base = common.version_dir("1.0.0")
+    os.makedirs(base)
+    old = os.path.join(base, "a.bin")
+    dedupe.write_file(old, payload)
+
+    target_dir = common.version_dir("2.0.0")
+    os.makedirs(target_dir)
+    target = os.path.join(target_dir, "a.bin")
+
+    store = dedupe.DedupeStore("2.0.0", 1024, _logger())
+    store.write(target, payload)
+    assert store.linked_files == 1
+    assert os.stat(target).st_ino == os.stat(old).st_ino
+
+    changed = b"changed-content" * 100
+    store2 = dedupe.DedupeStore("2.0.0", 1024, _logger())
+    store2.write(target, changed)
+    assert store2.written_files == 1
+    with open(target, "rb") as f:
+        assert f.read() == changed
+    with open(old, "rb") as f:
+        assert f.read() == payload  # 旧版本未被连带改写
