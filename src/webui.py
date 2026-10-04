@@ -9,6 +9,7 @@
 import argparse
 import logging
 import os
+import socket
 import threading
 
 from flask import Flask, jsonify, request
@@ -287,11 +288,27 @@ def parse_args(config):
     return parser.parse_args()
 
 
+def find_available_port(host, preferred):
+    """优先使用 preferred;被占用时由系统分配一个空闲端口。"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, preferred))
+            return preferred
+        except OSError:
+            pass
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((host, 0))
+        return s.getsockname()[1]
+
+
 def main():
     config = load_config()
     args = parse_args(config)
-    print("请用浏览器访问 http://%s:%d" % (args.host, args.port))
-    app.run(host=args.host, port=args.port)
+    port = find_available_port(args.host, args.port)
+    if port != args.port:
+        print("端口 %d 被占用,已改用 %d" % (args.port, port))
+    print("请用浏览器访问 http://%s:%d" % (args.host, port))
+    app.run(host=args.host, port=port)
 
 
 if __name__ == "__main__":
