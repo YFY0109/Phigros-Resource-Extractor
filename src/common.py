@@ -51,13 +51,21 @@ DEFAULT_CONFIG = {
 
 
 def detect_version(apk_path, override=None):
-    """从 APK 文件名识别版本号(如 Phigros_4.0.1.apk -> 4.0.1),可用 override 覆盖。"""
+    """识别游戏版本号:优先读取 APK 内 AndroidManifest.xml 的 versionName,
+    失败时回退文件名中的 x.y(.z)(如 Phigros_4.0.1.apk),可用 override 直接指定。"""
     if override:
         return override
+    try:
+        from apkmeta import read_manifest
+        version = (read_manifest(apk_path).get("version_name") or "").strip()
+        if version:
+            return version
+    except Exception:
+        pass
     match = re.search(r"\d+(?:\.\d+)+", os.path.basename(apk_path))
-    if not match:
-        raise SystemExit("无法从文件名 %r 识别版本号,请使用 --version 指定" % os.path.basename(apk_path))
-    return match.group(0)
+    if match:
+        return match.group(0)
+    raise SystemExit("无法从 APK %r 识别版本号,请使用 --version 指定" % os.path.basename(apk_path))
 
 
 def version_dir(version):

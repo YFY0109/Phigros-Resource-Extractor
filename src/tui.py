@@ -96,7 +96,7 @@ def resolve_version(apk_path, override=None):
     try:
         return detect_version(apk_path)
     except SystemExit:
-        return Prompt.ask("无法从文件名识别版本号,请手动输入(如 4.0.1)")
+        return Prompt.ask("无法自动识别版本号,请手动输入(如 4.0.1)")
 
 
 def ask_apk_path():

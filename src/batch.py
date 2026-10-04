@@ -81,7 +81,7 @@ def find_pending(logger):
             logger.warning("跳过(不是有效的 Phigros APK):%s", name)
             continue
         try:
-            version = detect_version(name)
+            version = detect_version(path)
         except SystemExit:
             logger.warning("跳过(文件名中未找到版本号,请重命名如 Phigros_4.0.1.apk):%s", name)
             continue
