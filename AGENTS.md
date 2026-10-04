@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Phigros APK 资源提取工具(Unity 游戏)。纯 Python 脚本,无测试/lint/CI——验证方式就是拿真实的 Phigros APK 跑一遍脚本。
+Phigros APK 资源提取工具(Unity 游戏)。纯 Python 脚本,带 pytest 单元测试(`tests/`);完整验证仍需拿真实的 Phigros APK 跑一遍流程。
 
 源码统一位于 `src/`(`src/deprecated/` 为历史遗留,勿用);仓库根目录只放配置(`config.json`)、数据(`typetree/`)、动态库(`lib*.dll`)、产物(`outputs/`)与项目元数据。
 
@@ -18,7 +18,7 @@ uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/
 
 - 版本号默认从 APK 文件名识别(如 `Phigros_4.0.1.apk` → `4.0.1`),可用 `--version` 覆盖;各脚本的版本必须一致。
 - 顺序有硬依赖:`resource.py` 增量模式要读 `outputs/<版本>/info/difficulty.csv`,必须先跑 `gameInformation.py`。
-- 快速验证(无需 APK):`uv run python -m py_compile src/common.py src/gameInformation.py src/resource.py src/phira.py`;完整验证需要真实 APK。
+- 验证:`uv run pytest`(单元测试,无需 APK);完整验证需要真实 APK。
 - APK 路径为必填参数,由用户显式提供(已移除 Android 自动定位)。
 - `uv run python src/tui.py` 是交互式 TUI(rich 进度条、配置编辑、`--apk/--all` 直跑);`uv run python src/webui.py` 是浏览器 WebUI(监听地址/端口读取 `config.json` 的 `webui`)。两者与 CLI 共享 `progress.ProgressReporter` 进度接口,任务逻辑统一走各模块的 `run()`。
 
