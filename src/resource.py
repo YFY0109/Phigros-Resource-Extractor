@@ -263,7 +263,12 @@ def run(apk_path, version, config, logger, progress=None):
             else:
                 # 增量提取:仅处理选中歌曲的资产包
                 difficulty_path = os.path.join(version_dir(version), "info", "difficulty.csv")
-                song_ids = select_songs(load_song_ids(difficulty_path), update)
+                try:
+                    song_ids = select_songs(load_song_ids(difficulty_path), update)
+                except FileNotFoundError:
+                    raise SystemExit("增量提取需要 %s,请先运行 gameInformation.py" % difficulty_path)
+                except ValueError as e:
+                    raise SystemExit("增量分段失败:%s(锚点未在 difficulty.csv 中找到?)" % e)
                 logger.info(str(song_ids))
                 progress.start("提取资源(增量)", total=None)
                 env = Environment()
