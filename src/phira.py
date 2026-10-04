@@ -120,7 +120,8 @@ def run(version, logger, progress=None):
     infos = load_infos(os.path.join(version_dir(version), "info", "info.csv"), logger)
     apply_difficulties(infos, os.path.join(version_dir(version), "info", "difficulty.csv"), logger)
 
-    # 重建打包输出目录(按曲目分目录,与 charts 结构一致)
+    # 先启动进度(重建输出目录可能耗时较长),再重建打包输出目录
+    progress.start("打包 Phira 自制谱", total=len(infos))
     phira_root = os.path.join(version_dir(version), "phira")
     try:
         shutil.rmtree(phira_root, True)
@@ -129,7 +130,6 @@ def run(version, logger, progress=None):
         logger.error("创建或删除目录时出错 - %s", e)
         raise SystemExit(1)
 
-    progress.start("打包 Phira 自制谱", total=len(infos))
     created = 0
     for song_id, info in infos.items():
         progress.check_cancelled()

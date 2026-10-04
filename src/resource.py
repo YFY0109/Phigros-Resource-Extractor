@@ -292,6 +292,8 @@ def run(apk_path, version, config, logger, progress=None):
                     except Exception:
                         logger.exception("资产保存失败,已跳过: %s", i_key)
     finally:
+        # 队列中可能还有大量待写文件,单独显示一个阶段,避免进度条停住无反馈
+        progress.start("写入剩余文件", total=None)
         writer.close()
         if store is not None:
             store.flush()
