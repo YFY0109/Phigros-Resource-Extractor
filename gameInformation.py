@@ -17,6 +17,14 @@ from common import detect_version, find_installed_apk, version_dir
 from log import init_console_logger
 
 
+def read_typetree(obj, typetree_data, script_name, read_monobehaviour=False):
+    """解析 MonoBehaviour typetree;失败时给出与游戏版本相关的明确错误。"""
+    try:
+        return obj.read_typetree(typetree_data, read_monobehaviour)
+    except Exception as e:
+        raise RuntimeError("解析 %s 失败,typetree.json 可能与游戏版本不匹配:%s" % (script_name, e))
+
+
 def run(path, version, logger):
     output_dir = os.path.join(version_dir(version), "info")
     os.makedirs(output_dir, exist_ok=True)
@@ -50,11 +58,11 @@ def run(path, version, logger):
             continue  # 无法读取脚本的 MonoBehaviour 直接跳过
 
         if script_name == "GameInformation":
-            game_information = obj.read_typetree(typetree["GameInformation"])
+            game_information = read_typetree(obj, typetree["GameInformation"], script_name)
         elif script_name == "GetCollectionControl":
-            collections = obj.read_typetree(typetree["GetCollectionControl"], True)
+            collections = read_typetree(obj, typetree["GetCollectionControl"], script_name, True)
         elif script_name == "TipsProvider":
-            tips = obj.read_typetree(typetree["TipsProvider"], True)
+            tips = read_typetree(obj, typetree["TipsProvider"], script_name, True)
 
     if game_information is None or collections is None or tips is None:
         raise RuntimeError(
