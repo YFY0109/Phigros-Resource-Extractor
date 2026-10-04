@@ -164,45 +164,47 @@ def run(path, logger):
                 avatar[l[1]] = l[0]
                 line = f.readline()[:-1]
 
-    thread = threading.Thread(target=io)
+    thread = threading.Thread(target=io, daemon=True)
     thread.start()
     ti = time.time()
     update = config["UPDATE"]
-    with ThreadPoolExecutor(6) as pool:
-        if update["main_story"] == 0 and update["other_song"] == 0 and update["side_story"] == 0:
-            with ZipFile(path) as apk:
-                for key, entry in table:
-                    env = Environment()
-                    env.load_file(BytesIO(apk.read("assets/aa/Android/%s" % entry)), name=key)
-                    for i_key, i_entry in env.files.items():
-                        save(i_key, i_entry, pool, logger)
-        else:
-            l = []
-            with open("info/difficulty.tsv", encoding="utf8") as f:
-                line = f.readline()
-                while line:
-                    l.append(line.split("\t", 2)[0])
-                    line = f.readline()
-            index1 = l.index("Doppelganger.LeaF")
-            index2 = l.index("Poseidon.1112vsStar")
-            del l[index2:len(l) - update["side_story"]]
-            del l[index1:index2 - update["other_song"]]
-            del l[:index1 - update["main_story"]]
-            logger.info(str(l))
-            env = Environment()
-            with ZipFile(path) as apk:
-                for key, entry in table:
-                    if key[:7] == "avatar.":
+    try:
+        with ThreadPoolExecutor(6) as pool:
+            if update["main_story"] == 0 and update["other_song"] == 0 and update["side_story"] == 0:
+                with ZipFile(path) as apk:
+                    for key, entry in table:
+                        env = Environment()
                         env.load_file(BytesIO(apk.read("assets/aa/Android/%s" % entry)), name=key)
-                        continue
-                    for song_id in l:
-                        if key.startswith("%s.0/" % song_id):
+                        for i_key, i_entry in env.files.items():
+                            save(i_key, i_entry, pool, logger)
+            else:
+                l = []
+                with open("info/difficulty.tsv", encoding="utf8") as f:
+                    line = f.readline()
+                    while line:
+                        l.append(line.split("\t", 2)[0])
+                        line = f.readline()
+                index1 = l.index("Doppelganger.LeaF")
+                index2 = l.index("Poseidon.1112vsStar")
+                del l[index2:len(l) - update["side_story"]]
+                del l[index1:index2 - update["other_song"]]
+                del l[:index1 - update["main_story"]]
+                logger.info(str(l))
+                env = Environment()
+                with ZipFile(path) as apk:
+                    for key, entry in table:
+                        if key[:7] == "avatar.":
                             env.load_file(BytesIO(apk.read("assets/aa/Android/%s" % entry)), name=key)
-                            break
-            for i_key, i_entry in env.files.items():
-                save(i_key, i_entry, pool, logger)
-    queue_in.put(None)
-    thread.join()
+                            continue
+                        for song_id in l:
+                            if key.startswith("%s.0/" % song_id):
+                                env.load_file(BytesIO(apk.read("assets/aa/Android/%s" % entry)), name=key)
+                                break
+                for i_key, i_entry in env.files.items():
+                    save(i_key, i_entry, pool, logger)
+    finally:
+        queue_in.put(None)
+        thread.join()
     logger.info("%f秒" % round(time.time() - ti, 4))
 
 
