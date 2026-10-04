@@ -108,6 +108,28 @@ def save(key, entry, pool, logger):
                 pool.submit(save_image, "illustration/%s%s.png" % (chapter9_ending_chart_id, level_id), obj.image)
 
 
+def load_bundle(env, apk, key, entry, logger):
+    """加载一个资产包,失败时记录并返回 False,不中断整体提取。"""
+    try:
+        env.load_file(BytesIO(apk.read("assets/aa/Android/%s" % entry)), name=key)
+        return True
+    except Exception:
+        logger.exception("资产包读取失败,已跳过: %s", key)
+        return False
+
+
+def process_bundle(key, entry, apk, pool, logger):
+    """处理一个独立资产包(全量模式:每个包使用独立 Environment)。"""
+    env = Environment()
+    if not load_bundle(env, apk, key, entry, logger):
+        return
+    for i_key, i_entry in env.files.items():
+        try:
+            save(i_key, i_entry, pool, logger)
+        except Exception:
+            logger.exception("资产保存失败,已跳过: %s", i_key)
+
+
 def run(path, logger):
     with ZipFile(path) as apk:
         with apk.open("assets/aa/catalog.json") as f:
@@ -173,10 +195,7 @@ def run(path, logger):
             if update["main_story"] == 0 and update["other_song"] == 0 and update["side_story"] == 0:
                 with ZipFile(path) as apk:
                     for key, entry in table:
-                        env = Environment()
-                        env.load_file(BytesIO(apk.read("assets/aa/Android/%s" % entry)), name=key)
-                        for i_key, i_entry in env.files.items():
-                            save(i_key, i_entry, pool, logger)
+                        process_bundle(key, entry, apk, pool, logger)
             else:
                 l = []
                 with open("info/difficulty.tsv", encoding="utf8") as f:
@@ -194,14 +213,17 @@ def run(path, logger):
                 with ZipFile(path) as apk:
                     for key, entry in table:
                         if key[:7] == "avatar.":
-                            env.load_file(BytesIO(apk.read("assets/aa/Android/%s" % entry)), name=key)
+                            load_bundle(env, apk, key, entry, logger)
                             continue
                         for song_id in l:
                             if key.startswith("%s.0/" % song_id):
-                                env.load_file(BytesIO(apk.read("assets/aa/Android/%s" % entry)), name=key)
+                                load_bundle(env, apk, key, entry, logger)
                                 break
                 for i_key, i_entry in env.files.items():
-                    save(i_key, i_entry, pool, logger)
+                    try:
+                        save(i_key, i_entry, pool, logger)
+                    except Exception:
+                        logger.exception("资产保存失败,已跳过: %s", i_key)
     finally:
         queue_in.put(None)
         thread.join()
