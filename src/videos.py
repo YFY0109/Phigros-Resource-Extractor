@@ -59,12 +59,14 @@ def find_video_clips(apk, logger):
 
     3.x 布局:VideoClip 在 sharedassets*.assets 中;
     4.x 布局:对象表合并进 data.unity3d(资源流仍在 sharedassets*.resource)。
+    两者可能并存,因此都扫描,完全相同的记录只保留一次。
     """
     names = apk.namelist()
     bases = _sharedassets_bases(names)
-    if not bases and DATA_PREFIX + "data.unity3d" in names:
-        bases = [DATA_PREFIX + "data.unity3d"]
+    if DATA_PREFIX + "data.unity3d" in names:
+        bases.append(DATA_PREFIX + "data.unity3d")
     clips = []
+    seen = set()
     for base in bases:
         try:
             env = Environment()
@@ -88,12 +90,17 @@ def find_video_clips(apk, logger):
             else:
                 items = []
             for item in items:
-                clips.append({
+                clip = {
                     "name": str(tree.get("m_Name") or "video"),
                     "source": item.get("m_Source"),
                     "offset": item.get("m_Offset") or 0,
                     "size": item.get("m_Size") or 0,
-                })
+                }
+                token = (clip["name"], clip["source"], clip["offset"], clip["size"])
+                if token in seen:
+                    continue
+                seen.add(token)
+                clips.append(clip)
     return clips
 
 
@@ -168,12 +175,14 @@ def run(apk_path, version, logger, progress=None):
             source = clip["source"]
             if not source:
                 logger.warning("跳过(无数据来源): %s", clip["name"])
+                progress.advance(clip["name"])
                 continue
             try:
                 blob = _read_data(apk, names, DATA_PREFIX + source)
                 data = blob[clip["offset"]:clip["offset"] + clip["size"]] if clip["size"] else blob[clip["offset"]:]
             except Exception as e:
                 logger.warning("视频数据读取失败 %s: %s", clip["name"], e)
+                progress.advance(clip["name"])
                 continue
             _save_clip(store, output_dir, clip["name"], data, logger)
             created += 1
