@@ -4,12 +4,5 @@
 *.txt
 __pycache__/
 .venv/
-info/
-avatar/
-chart/
-illustration/
-illustrationBlur/
-illustrationLowRes/
-music/
+outputs/
 splited_music/
-phira/
