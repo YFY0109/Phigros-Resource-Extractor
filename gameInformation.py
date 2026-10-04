@@ -16,6 +16,20 @@ from UnityPy import Environment
 from common import detect_version, find_installed_apk, version_dir
 from log import init_console_logger
 
+# 版本专属 typetree 存放目录;未找到时回退到根目录的 typetree.json
+TYPETREE_DIR = "typetree"
+DEFAULT_TYPETREE = "typetree.json"
+
+
+def find_typetree(version, logger):
+    """按游戏版本查找 typetree 文件:typetree/<版本>.json 优先,回退默认文件。"""
+    versioned = os.path.join(TYPETREE_DIR, "%s.json" % version)
+    if os.path.isfile(versioned):
+        logger.info("使用版本专属 typetree: %s" % versioned)
+        return versioned
+    logger.info("未找到 %s 的专属 typetree,使用默认 %s" % (version, DEFAULT_TYPETREE))
+    return DEFAULT_TYPETREE
+
 
 def read_typetree(obj, typetree_data, script_name, read_monobehaviour=False):
     """解析 MonoBehaviour typetree;失败时给出与游戏版本相关的明确错误。"""
@@ -29,7 +43,7 @@ def run(path, version, logger):
     output_dir = os.path.join(version_dir(version), "info")
     os.makedirs(output_dir, exist_ok=True)
 
-    with open("typetree.json") as f:
+    with open(find_typetree(version, logger), encoding="utf8") as f:
         typetree = json.load(f)
     env = Environment()
     with zipfile.ZipFile(path) as apk:
