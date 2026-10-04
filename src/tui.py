@@ -21,6 +21,7 @@ from rich.progress import (
     BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn,
 )
 
+import batch
 import gameInformation
 import phira
 import resource as resource_module
@@ -125,6 +126,27 @@ def execute(steps, apk_path, version, config, logger):
         console.print_exception()
 
 
+def execute_batch(config, logger):
+    """批量处理 input/ 目录(完整流程);异常不退出菜单。"""
+    console.rule("[bold]批量处理 input/[/bold]")
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+        ) as progress:
+            count = batch.process_all(("info", "resource", "phira"), config, logger, RichProgress(progress))
+        console.print("[bold green]批量处理完成,共 %d 个 APK[/bold green]" % count)
+    except SystemExit as e:
+        console.print("[bold red]批量处理中断:%s[/bold red]" % escape(str(e)))
+    except Exception:
+        console.print("[bold red]批量处理出错:[/bold red]")
+        console.print_exception()
+
+
 def edit_config(config):
     """交互修改 config.json 的常用项。"""
     console.rule("修改配置")
@@ -164,13 +186,17 @@ def interactive(args):
             "[3] 仅提取资源\n"
             "[4] 仅打包 Phira 谱面\n"
             "[5] 修改配置\n"
+            "[6] 批量处理 input/ 文件夹\n"
             "[0] 退出"
         )
-        choice = Prompt.ask("请选择", choices=["0", "1", "2", "3", "4", "5"], default="1")
+        choice = Prompt.ask("请选择", choices=["0", "1", "2", "3", "4", "5", "6"], default="1")
         if choice == "0":
             break
         if choice == "5":
             edit_config(config)
+            continue
+        if choice == "6":
+            execute_batch(config, logger)
             continue
 
         steps = {
@@ -203,11 +229,15 @@ def parse_args():
     parser.add_argument("--info", action="store_true", help="直跑:仅提取游戏信息")
     parser.add_argument("--resource", action="store_true", help="直跑:仅提取资源")
     parser.add_argument("--phira", action="store_true", help="直跑:仅打包 Phira 谱面")
+    parser.add_argument("--input", action="store_true", help="批量处理 input/ 目录(完整流程)")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    if args.input:
+        execute_batch(load_config(), make_rich_logger())
+        return
     steps = set()
     if args.all:
         steps.update(STEPS)

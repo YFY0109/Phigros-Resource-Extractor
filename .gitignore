@@ -4,5 +4,6 @@
 *.txt
 __pycache__/
 .venv/
+input/
 outputs/
 splited_music/
