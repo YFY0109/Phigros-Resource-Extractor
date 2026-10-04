@@ -278,6 +278,7 @@ def run(apk_path, version, config, logger):
     finally:
         writer.close()
         if store is not None:
+            store.flush()
             store.report()
     logger.info("%f秒" % round(time.time() - started, 4))
 
