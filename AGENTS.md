@@ -2,7 +2,7 @@
 
 Phigros APK 资源提取工具(Unity 游戏)。纯 Python 脚本,无测试/lint/CI——验证方式就是拿真实的 Phigros APK 跑一遍脚本。
 
-源码统一位于 `src/`;仓库根目录只放配置(`config.json`)、数据(`typetree.json`、`typetree/`)、动态库(`lib*.dll`)、产物(`outputs/`)与项目元数据。
+源码统一位于 `src/`(`src/deprecated/` 为历史遗留,勿用);仓库根目录只放配置(`config.json`)、数据(`typetree.json`、`typetree/`)、动态库(`lib*.dll`)、产物(`outputs/`)与项目元数据。
 
 ## 命令
 
@@ -10,6 +10,7 @@ Phigros APK 资源提取工具(Unity 游戏)。纯 Python 脚本,无测试/lint/
 
 ```sh
 uv sync
+uv run python src/tui.py                         # 交互式 TUI(rich 进度条);直跑:`--apk <路径> --all`
 uv run python src/gameInformation.py <apk路径>   # 1. 生成 outputs/<版本>/info/
 uv run python src/resource.py <apk路径>          # 2. 生成 outputs/<版本>/{avatars,charts,illustrations,illustrationsBlur,illustrationsLowRes,music}/
 uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/phira/<曲目>/<难度>.pez(默认最新版本)
@@ -19,7 +20,7 @@ uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/
 - 顺序有硬依赖:`resource.py` 增量模式要读 `outputs/<版本>/info/difficulty.csv`,必须先跑 `gameInformation.py`。
 - 快速验证(无需 APK):`uv run python -m py_compile src/common.py src/gameInformation.py src/resource.py src/phira.py`;完整验证需要真实 APK。
 - APK 路径为必填参数,由用户显式提供(已移除 Android 自动定位)。
-- `uv run python src/gui.py` 是 PyQt5 图形界面(先 `uv sync --extra gui`);内部经 `subprocess` 调用 `src/` 下的脚本。
+- `uv run python src/tui.py` 是交互式 TUI(rich 进度条、配置编辑、`--apk/--all` 直跑);`uv run python src/webui.py` 是浏览器 WebUI(先 `uv sync --extra web`)。两者与 CLI 共享 `progress.ProgressReporter` 进度接口,任务逻辑统一走各模块的 `run()`。
 
 ## 注意事项
 
@@ -29,9 +30,7 @@ uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/
 - 资源类型到输出目录的映射集中在 `src/common.py` 的 `RESOURCE_DIRS`,`resource.py` 写入与 `phira.py` 读取共用,不要再硬编码目录名。
 - `info/` 下的表格类数据为 CSV(`difficulty/info/collection/tmp`,UTF-8 带 BOM、Excel 友好;`gameInformation.py` 写,`resource.py`/`phira.py` 读,读取用 `utf-8-sig` 兼容 BOM);单列列表(`single/illustration/avatar/tips`)保持 txt。
 - 跨版本去重在 `src/dedupe.py`:对 `outputs/` 下其他版本的同名文件按"文件大小 + 头尾各 `sample_bytes` 字节"计算 blake2b 摘要,一致则硬链接,否则正常写入;硬链接失败自动回退。摘要缓存于各版本目录的 `.dedupe.json`(对比优先走缓存,未命中才读文件并补写),配置在 `config.json` 的 `dedupe`。注意硬链接文件是多版本共享的只读产物,不要原地修改。
-- `src/main.py` 已腐烂/无法运行(`from . import resource` 相对导入错误、旧接口签名),不要以它为范本;用 CLI 脚本或 GUI。
-- `src/split.py`/`src/split.sh` 处理的是 `music/*.wav`,与当前 `.ogg` 输出不匹配——视为已过时。
-- `src/untitled.py` 看起来是 pyuic5 生成的,但里面有手写的槽函数(`extract_apk_file`、`checkboxstate`)——**不要**从 `.ui` 文件重新生成。
+- `src/deprecated/` 下的脚本已损坏或过时(旧 tkinter/PyQt 界面、音频切分工具),仅作历史参考,不要使用。
 - typetree 是 `src/gameInformation.py` 解析 MonoBehaviour 的核心数据:优先使用 `typetree/<完整版本>.json`(已内置 `typetree/3.20.0.json` 适配旧版),未找到则回退根目录 `typetree.json`(当前 4.0.x 所用);游戏更新后需重新生成并放入 `typetree/`,详见 `typetree/README.md`。版本不匹配时会抛 `ValueError: Can't read ... bytes`。
 - `src/gameInformation.py` 兼容两种 APK 布局:`assets/bin/Data/data.unity3d`,或旧版的 `globalgamemanagers.assets` + `level0`。
 - `src/resource.py` 对第九章谢幕曲(硬编码 id `WhatdoyouwantmorethanaHappyending...`)有独立分支,处理其四难度差分曲绘(`_EZ/_HD/_IN/_AT` 后缀);`phira.py` 的曲绘 fallback 也支持 `<曲ID>_<难度>.png` 命名。

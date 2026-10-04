@@ -27,22 +27,21 @@
    uv sync
    ```
 
-2. 提取游戏信息:
+2. 使用交互式界面(推荐):
 
    ```sh
-   uv run python src/gameInformation.py <Phigros APK 路径>
+   uv run python src/tui.py     # 终端 TUI:菜单 + rich 进度条,可编辑配置
+   uv run python src/webui.py   # 浏览器 WebUI:默认 http://127.0.0.1:8000
    ```
 
-3. 提取资源文件:
+   > WebUI 需要额外依赖:`uv sync --extra web`。TUI 也支持直跑,如 `uv run python src/tui.py --apk <路径> --all`。
+
+3. 或按步骤命令行直跑:
 
    ```sh
-   uv run python src/resource.py <Phigros APK 路径>
-   ```
-
-4. (可选)打包为 Phira 自制谱:
-
-   ```sh
-   uv run python src/phira.py
+   uv run python src/gameInformation.py <Phigros APK 路径>   # 提取游戏信息
+   uv run python src/resource.py <Phigros APK 路径>          # 提取资源
+   uv run python src/phira.py                                # 打包 Phira 自制谱
    ```
 
 版本号默认从 APK 文件名识别(如 `Phigros_4.0.1.apk` → `4.0.1`),也可以用 `--version` 指定。提取哪些类别可在 `config.json` 的 `types` 中配置(默认全部开启);`update` 可配置只提取各分类最新若干首。
