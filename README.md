@@ -15,7 +15,7 @@
 | 模糊曲绘 | `outputs/<版本>/illustrationsBlur/` | PNG |
 | 低质量曲绘 | `outputs/<版本>/illustrationsLowRes/` | PNG |
 | 音乐文件 | `outputs/<版本>/music/` | OGG |
-| Phira 自制谱 | `outputs/<版本>/phira/<难度>/` | `.pez` |
+| Phira 自制谱 | `outputs/<版本>/phira/<曲目>/` | `<难度>.pez` |
 
 ## 使用方法
 

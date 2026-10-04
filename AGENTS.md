@@ -12,7 +12,7 @@ Phigros APK 资源提取工具(Unity 游戏)。纯 Python 脚本,无测试/lint/
 uv sync
 uv run python src/gameInformation.py <apk路径>   # 1. 生成 outputs/<版本>/info/
 uv run python src/resource.py <apk路径>          # 2. 生成 outputs/<版本>/{avatars,charts,illustrations,illustrationsBlur,illustrationsLowRes,music}/
-uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/phira/<EZ|HD|IN|AT>/*.pez(默认最新版本)
+uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/phira/<曲目>/<难度>.pez(默认最新版本)
 ```
 
 - 版本号默认从 APK 文件名识别(如 `Phigros_4.0.1.apk` → `4.0.1`),可用 `--version` 覆盖;各脚本的版本必须一致。

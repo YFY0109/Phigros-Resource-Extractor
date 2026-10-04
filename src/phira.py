@@ -71,9 +71,11 @@ def apply_difficulties(infos, difficulty_path, logger):
 
 
 def build_pez(version, level, song_id, info, logger):
-    """为单个歌曲的单个难度生成 .pez 压缩包。"""
+    """为单个歌曲的单个难度生成 .pez 压缩包(按曲目分目录,与 charts 结构一致)。"""
     level_index = LEVELS.index(level)
-    pez_path = os.path.join(version_dir(version), "phira", level, "%s-%s.pez" % (song_id, level))
+    song_dir = os.path.join(version_dir(version), "phira", "%s.0" % song_id)
+    os.makedirs(song_dir, exist_ok=True)
+    pez_path = os.path.join(song_dir, "%s.pez" % level)
     with ZipFile(pez_path, "x") as pez:
         info_txt_content = (
             "#\n"
@@ -119,12 +121,11 @@ def main():
     infos = load_infos(os.path.join(version_dir(version), "info", "info.tsv"), logger)
     apply_difficulties(infos, os.path.join(version_dir(version), "info", "difficulty.tsv"), logger)
 
-    # 重建打包输出目录
+    # 重建打包输出目录(按曲目分目录,与 charts 结构一致)
     phira_root = os.path.join(version_dir(version), "phira")
     try:
         shutil.rmtree(phira_root, True)
-        for level in LEVELS:
-            os.makedirs(os.path.join(phira_root, level), exist_ok=True)
+        os.makedirs(phira_root, exist_ok=True)
     except Exception as e:
         logger.error("创建或删除目录时出错 - %s", e)
         raise SystemExit(1)
