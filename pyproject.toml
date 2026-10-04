@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gui = ["PyQt5"]
+web = ["flask"]
 
 [tool.uv]
 package = false
