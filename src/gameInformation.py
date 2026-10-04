@@ -18,9 +18,9 @@ from common import detect_version, version_dir
 from log import init_console_logger
 from progress import NULL_PROGRESS
 
-# 版本专属 typetree 存放目录;未找到时回退到根目录的 typetree.json
+# typetree 目录:版本专属 <版本>.json 优先,未找到时回退 default.json
 TYPETREE_DIR = "typetree"
-DEFAULT_TYPETREE = "typetree.json"
+DEFAULT_TYPETREE = os.path.join(TYPETREE_DIR, "default.json")
 
 
 def find_typetree(version, logger):
