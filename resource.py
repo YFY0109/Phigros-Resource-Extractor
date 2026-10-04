@@ -1,25 +1,49 @@
+"""从 Phigros APK 提取资源(头像、谱面、曲绘、音乐)。
+
+用法:
+    python resource.py <Phigros APK 路径> [--version X.Y.Z]
+
+产物输出到 outputs/<版本>/ 下(目录映射见 common.RESOURCE_DIRS)。
+"""
+import argparse
 import base64
-from concurrent.futures import ThreadPoolExecutor
-from configparser import ConfigParser
-import gc
-from io import BytesIO
 import json
 import os
-from queue import Queue
-import shutil
-import sys
+import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
+from queue import Queue
+from zipfile import ZipFile
+
 from UnityPy import Environment
 from UnityPy.classes import AudioClip
 from UnityPy.enums import ClassIDType
-from zipfile import ZipFile
-from log import init_console_logger
-import logging
 
+from common import detect_version, load_config, resource_dir, version_dir
+from log import init_console_logger
+
+# 需要读取的 Unity 资产类型
+BUFFER_CLASSES = (ClassIDType.TextAsset, ClassIDType.Sprite, ClassIDType.AudioClip)
+
+# 资产解码/写盘线程数
+WORKER_THREADS = 6
+
+APK_ASSETS_ROOT = "assets/aa"
+APK_BUNDLE_TEMPLATE = APK_ASSETS_ROOT + "/Android/%s"
+
+# 第九章谢幕曲,含四难度差分曲绘的独立处理分支
+CHAPTER9_ENDING_CHART_ID = "WhatdoyouwantmorethanaHappyending.Apo11oHALOprogramft安月名莉子大瀬良あい"
+
+# [UPDATE] 增量提取的区段分界曲 ID(跟随游戏曲目表,游戏更新后可能需要调整)
+MAIN_STORY_END = "Doppelganger.LeaF"
+OTHER_SONG_END = "Poseidon.1112vsStar"
 
 
 class ByteReader:
+    """按小端读取 catalog 桶数据的极简读取器。"""
+
     def __init__(self, data):
         self.data = data
         self.position = 0
@@ -29,110 +53,114 @@ class ByteReader:
         return self.data[self.position - 4] ^ self.data[self.position - 3] << 8 ^ self.data[self.position - 2] << 16
 
 
-queue_out = Queue()
-queue_in = Queue()
+class AssetWriter:
+    """单线程落盘队列,避免多线程同时写文件。close() 会等待队列清空后退出。"""
+
+    def __init__(self):
+        self._queue = Queue()
+        self._thread = threading.Thread(target=self._consume, daemon=True)
+        self._thread.start()
+
+    def _consume(self):
+        while True:
+            item = self._queue.get()
+            if item is None:
+                break
+            path, data = item
+            with open(path, "wb") as f:
+                if isinstance(data, BytesIO):
+                    f.write(data.getbuffer())
+                else:
+                    f.write(data)
+
+    def put(self, path, data):
+        self._queue.put((path, data))
+
+    def close(self):
+        self._queue.put(None)
+        self._thread.join()
 
 
-def io():
-    while True:
-        item = queue_in.get()
-        if item is None:
-            break
-        else:
-            path, resource = item
-            if type(resource) == BytesIO:
-                with resource:
-                    with open(path, "wb") as f:
-                        f.write(resource.getbuffer())
-            else:
-                with open(path, "wb") as f:
-                    f.write(resource)
+def save_image(writer, path, image):
+    bytes_io = BytesIO()
+    image.save(bytes_io, "png")
+    writer.put(path, bytes_io)
 
 
-def save_image(path, image):
-    bytesIO = BytesIO()
-    image.save(bytesIO, "png")
-    queue_in.put((path, bytesIO))
-
-
-def save_music(path, music: AudioClip):
+def save_music(writer, path, music: AudioClip):
+    from fsb5 import FSB5  # 仅音乐提取需要,延迟导入,未启用音乐时无需该依赖
     fsb = FSB5(music.m_AudioData)
-    rebuilt_sample = fsb.rebuild_sample(fsb.samples[0])
-    queue_in.put((path, rebuilt_sample))
+    writer.put(path, fsb.rebuild_sample(fsb.samples[0]))
 
 
-classes = ClassIDType.TextAsset, ClassIDType.Sprite, ClassIDType.AudioClip
-
-
-def save(key, entry, pool, logger):
-    obj = entry.get_filtered_objects(classes)
-    obj = next(obj).read()
-    chapter9_ending_chart_id = "WhatdoyouwantmorethanaHappyending.Apo11oHALOprogramft安月名莉子大瀬良あい"
-    if config["avatar"] and key[:7] == "avatar.":
+def save_asset(key, entry, writer, pool, config, version, logger):
+    """按资源类型匹配 catalog 条目 key,并把资产写入对应输出目录。"""
+    types = config["types"]
+    obj = next(entry.get_filtered_objects(BUFFER_CLASSES)).read()
+    if types["avatar"] and key[:7] == "avatar.":
         key = key[7:]
-        bytesIO = BytesIO()
-        obj.image.save(bytesIO, "png")
-        queue_in.put(("avatar/%s.png" % key, bytesIO))
-    elif config["chart"] and key[-14:-7] == "/Chart_" and key[-5:] == ".json":
+        bytes_io = BytesIO()
+        obj.image.save(bytes_io, "png")
+        writer.put(os.path.join(resource_dir(version, "avatar"), "%s.png" % key), bytes_io)
+    elif types["chart"] and key[-14:-7] == "/Chart_" and key[-5:] == ".json":
         logger.info(key)
-        p = "chart/" + key[:-14]
-        if not os.path.exists(p):
-            os.mkdir(p)
-        queue_in.put(("chart/%s/%s.json" % (key[:-14], key[-7:-5]), obj.script))
-    elif config["illustrationBlur"] and key[-23:-3] == ".0/IllustrationBlur.":
+        song_dir = os.path.join(resource_dir(version, "chart"), key[:-14])
+        os.makedirs(song_dir, exist_ok=True)
+        writer.put(os.path.join(song_dir, "%s.json" % key[-7:-5]), obj.script)
+    elif types["illustrationBlur"] and key[-23:-3] == ".0/IllustrationBlur.":
         key = key[:-23]
-        bytesIO = BytesIO()
-        obj.image.save(bytesIO, "png")
-        queue_in.put(("illustrationBlur/%s.png" % key, bytesIO))
-    elif config["illustrationLowRes"] and key[-25:-3] == ".0/IllustrationLowRes.":
+        bytes_io = BytesIO()
+        obj.image.save(bytes_io, "png")
+        writer.put(os.path.join(resource_dir(version, "illustrationBlur"), "%s.png" % key), bytes_io)
+    elif types["illustrationLowRes"] and key[-25:-3] == ".0/IllustrationLowRes.":
         key = key[:-25]
-        pool.submit(save_image, "illustrationLowRes/%s.png" % key, obj.image)
-    elif config["illustration"] and key[-19:-3] == ".0/Illustration.":
+        pool.submit(save_image, writer, os.path.join(resource_dir(version, "illustrationLowRes"), "%s.png" % key), obj.image)
+    elif types["illustration"] and key[-19:-3] == ".0/Illustration.":
         key = key[:-19]
-        pool.submit(save_image, "illustration/%s.png" % key, obj.image)
-    elif config["music"] and key[-12:] == ".0/music.wav":
+        pool.submit(save_image, writer, os.path.join(resource_dir(version, "illustration"), "%s.png" % key), obj.image)
+    elif types["music"] and key[-12:] == ".0/music.wav":
         key = key[:-12]
-        pool.submit(save_music, "music/%s.ogg" % key, obj)
-        # save_music(f"music/{key}.wav", obj)
-    ## 第九章谢幕曲四难度差分曲绘
-    elif key.startswith("%s.0/Illustration" % chapter9_ending_chart_id):
+        pool.submit(save_music, writer, os.path.join(resource_dir(version, "music"), "%s.ogg" % key), obj)
+    # 第九章谢幕曲的四难度差分曲绘
+    elif key.startswith("%s.0/Illustration" % CHAPTER9_ENDING_CHART_ID):
         level_id = key[-7:-4]  # _EZ/_HD/_IN/_AT
         if level_id[0] == "_":
-            if config["illustrationBlur"] and key[-26:-7] == ".0/IllustrationBlur":
-                bytesIO = BytesIO()
-                obj.image.save(bytesIO, "png")
-                queue_in.put(("illustrationBlur/%s%s.png" % (chapter9_ending_chart_id, level_id), bytesIO))
-            elif config["illustrationLowRes"] and key[-28:-7] == ".0/IllustrationLowRes":
-                pool.submit(save_image, "illustrationLowRes/%s%s.png" % (chapter9_ending_chart_id, level_id), obj.image)
-            elif config["illustration"] and key[-22:-7] == ".0/Illustration":
-                pool.submit(save_image, "illustration/%s%s.png" % (chapter9_ending_chart_id, level_id), obj.image)
+            if types["illustrationBlur"] and key[-26:-7] == ".0/IllustrationBlur":
+                bytes_io = BytesIO()
+                obj.image.save(bytes_io, "png")
+                writer.put(os.path.join(resource_dir(version, "illustrationBlur"), "%s%s.png" % (CHAPTER9_ENDING_CHART_ID, level_id)), bytes_io)
+            elif types["illustrationLowRes"] and key[-28:-7] == ".0/IllustrationLowRes":
+                pool.submit(save_image, writer, os.path.join(resource_dir(version, "illustrationLowRes"), "%s%s.png" % (CHAPTER9_ENDING_CHART_ID, level_id)), obj.image)
+            elif types["illustration"] and key[-22:-7] == ".0/Illustration":
+                pool.submit(save_image, writer, os.path.join(resource_dir(version, "illustration"), "%s%s.png" % (CHAPTER9_ENDING_CHART_ID, level_id)), obj.image)
 
 
 def load_bundle(env, apk, key, entry, logger):
-    """加载一个资产包,失败时记录并返回 False,不中断整体提取。"""
+    """加载一个资产包;失败时记录并返回 False,不中断整体提取。"""
     try:
-        env.load_file(BytesIO(apk.read("assets/aa/Android/%s" % entry)), name=key)
+        env.load_file(BytesIO(apk.read(APK_BUNDLE_TEMPLATE % entry)), name=key)
         return True
     except Exception:
         logger.exception("资产包读取失败,已跳过: %s", key)
         return False
 
 
-def process_bundle(key, entry, apk, pool, logger):
-    """处理一个独立资产包(全量模式:每个包使用独立 Environment)。"""
+def process_bundle(key, entry, apk, pool, writer, config, version, logger):
+    """全量模式:每个资产包使用独立 Environment,解析后逐资产保存。"""
     env = Environment()
     if not load_bundle(env, apk, key, entry, logger):
         return
     for i_key, i_entry in env.files.items():
         try:
-            save(i_key, i_entry, pool, logger)
+            save_asset(i_key, i_entry, writer, pool, config, version, logger)
         except Exception:
             logger.exception("资产保存失败,已跳过: %s", i_key)
 
 
-def run(path, logger):
+def parse_catalog(path, logger):
+    """解析 APK 内的 Addressables catalog,返回 [key, entry] 表。"""
     with ZipFile(path) as apk:
-        with apk.open("assets/aa/catalog.json") as f:
+        with apk.open(APK_ASSETS_ROOT + "/catalog.json") as f:
             data = json.load(f)
 
     key = base64.b64decode(data["m_KeyDataString"])
@@ -176,93 +204,104 @@ def run(path, logger):
         if '_' in value:
             table[i][1] = value.split('_', 1)[1]
         logger.info('{key}, {value}'.format(key=key, value=value))
+    return table
 
-    if config["avatar"]:
-        avatar = {}
-        with open("info/tmp.tsv",encoding="utf8") as f:
-            line = f.readline()[:-1]
-            while line:
-                l = line.split("\t")
-                avatar[l[1]] = l[0]
-                line = f.readline()[:-1]
 
-    thread = threading.Thread(target=io, daemon=True)
-    thread.start()
-    ti = time.time()
-    update = config["UPDATE"]
+def load_song_ids(difficulty_path):
+    """读取 difficulty.tsv 中的歌曲 ID 列表(文件按游戏内曲目顺序排列)。"""
+    with open(difficulty_path, encoding="utf8") as f:
+        return [line.split("\t", 2)[0] for line in f if line.strip()]
+
+
+def select_songs(all_ids, update):
+    """按 [UPDATE] 计数选取主线/单曲/支线各区段最新的若干首,按原顺序返回。"""
+    index1 = all_ids.index(MAIN_STORY_END)
+    index2 = all_ids.index(OTHER_SONG_END)
+    main = all_ids[:index1][-update["main_story"]:] if update["main_story"] else []
+    other = all_ids[index1:index2][-update["other_song"]:] if update["other_song"] else []
+    side = all_ids[index2:][-update["side_story"]:] if update["side_story"] else []
+    return main + other + side
+
+
+def run(apk_path, version, config, logger):
+    types = config["types"]
+
+    # 创建启用的资源输出目录;Android 上放置 .nomedia 防止媒体扫描
+    for resource_type, enabled in types.items():
+        if not enabled:
+            continue
+        directory = resource_dir(version, resource_type)
+        os.makedirs(directory, exist_ok=True)
+        if os.path.isdir("/system/") and not os.getcwd().startswith("/data/"):
+            with open(os.path.join(directory, ".nomedia"), "wb"):
+                pass
+
+    table = parse_catalog(apk_path, logger)
+
+    writer = AssetWriter()
+    started = time.time()
+    update = config["update"]
     try:
-        with ThreadPoolExecutor(6) as pool:
+        with ThreadPoolExecutor(WORKER_THREADS) as pool:
             if update["main_story"] == 0 and update["other_song"] == 0 and update["side_story"] == 0:
-                with ZipFile(path) as apk:
+                # 全量提取
+                with ZipFile(apk_path) as apk:
                     for key, entry in table:
-                        process_bundle(key, entry, apk, pool, logger)
+                        process_bundle(key, entry, apk, pool, writer, config, version, logger)
             else:
-                l = []
-                with open("info/difficulty.tsv", encoding="utf8") as f:
-                    line = f.readline()
-                    while line:
-                        l.append(line.split("\t", 2)[0])
-                        line = f.readline()
-                index1 = l.index("Doppelganger.LeaF")
-                index2 = l.index("Poseidon.1112vsStar")
-                del l[index2:len(l) - update["side_story"]]
-                del l[index1:index2 - update["other_song"]]
-                del l[:index1 - update["main_story"]]
-                logger.info(str(l))
+                # 增量提取:仅处理选中歌曲的资产包
+                difficulty_path = os.path.join(version_dir(version), "info", "difficulty.tsv")
+                song_ids = select_songs(load_song_ids(difficulty_path), update)
+                logger.info(str(song_ids))
                 env = Environment()
-                with ZipFile(path) as apk:
+                with ZipFile(apk_path) as apk:
                     for key, entry in table:
                         if key[:7] == "avatar.":
                             load_bundle(env, apk, key, entry, logger)
                             continue
-                        for song_id in l:
+                        for song_id in song_ids:
                             if key.startswith("%s.0/" % song_id):
                                 load_bundle(env, apk, key, entry, logger)
                                 break
                 for i_key, i_entry in env.files.items():
                     try:
-                        save(i_key, i_entry, pool, logger)
+                        save_asset(i_key, i_entry, writer, pool, config, version, logger)
                     except Exception:
                         logger.exception("资产保存失败,已跳过: %s", i_key)
     finally:
-        queue_in.put(None)
-        thread.join()
-    logger.info("%f秒" % round(time.time() - ti, 4))
+        writer.close()
+    logger.info("%f秒" % round(time.time() - started, 4))
+
+
+def find_installed_apk():
+    """Android:通过 pm 定位已安装的 Phigros APK。"""
+    result = subprocess.run(
+        "pm path com.PigeonGames.Phigros",
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=True,
+    )
+    return result.stdout[8:-1].decode()
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="从 Phigros APK 提取资源")
+    parser.add_argument("apk", nargs="?", help="Phigros APK 路径(Android 上可省略,自动定位)")
+    parser.add_argument("--version", help="游戏版本号(默认从 APK 文件名识别)")
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    apk_path = args.apk
+    if not apk_path:
+        if os.path.isdir("/data/"):
+            apk_path = find_installed_apk()
+        else:
+            raise SystemExit("请提供 Phigros APK 路径")
+    version = detect_version(apk_path, args.version)
+    logger = init_console_logger()
+    logger.info("版本 %s,输出目录 %s" % (version, version_dir(version)))
+    run(apk_path, version, load_config(), logger)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 1 and os.path.isdir("/data/"):
-        import subprocess
-        r = subprocess.run("pm path com.PigeonGames.Phigros",stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,shell=True)
-        file_path = r.stdout[8:-1].decode()
-    else:
-        file_path = sys.argv[1]
-    c = ConfigParser()
-    c.read("config.ini", "utf8")
-    types = c["TYPES"]
-    config = {
-        "avatar": types.getboolean("avatar"),
-        "chart": types.getboolean("Chart"),
-        "illustrationBlur": types.getboolean("IllustrationBlur"),
-        "illustrationLowRes": types.getboolean("IllustrationLowRes"),
-        "illustration": types.getboolean("Illustration"),
-        "music": types.getboolean("music"),
-        "UPDATE": {
-            "main_story": c["UPDATE"].getint("main_story"),
-            "side_story": c["UPDATE"].getint("side_story"),
-            "other_song": c["UPDATE"].getint("other_song")
-        }
-    }
-    if config["music"]:
-        from fsb5 import FSB5
-        from fsb5 import vorbis
-    type_list = ("avatar", "chart", "illustrationBlur", "illustrationLowRes", "illustration", "music")
-    for directory in type_list:
-        if not config[directory]:
-            continue
-        if not os.path.isdir(directory):
-            os.mkdir(directory)
-        if os.path.isdir("/system/") and not os.getcwd().startswith("/data/"):
-            with open(directory + "/.nomedia", "wb"):
-                pass
-    run(file_path, init_console_logger())
+    main()
