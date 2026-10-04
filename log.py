@@ -11,6 +11,9 @@ def init_console_logger(
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.handlers.clear()
+    # 窄编码控制台(如 Windows GBK)下,遇不可编码字符时用替换符而不是抛 UnicodeEncodeError
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     if log_format is None:
         log_format = (
             "\033[36m%(asctime)s\033[0m "
