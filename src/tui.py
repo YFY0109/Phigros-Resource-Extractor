@@ -25,12 +25,13 @@ import batch
 import gameInformation
 import phira
 import resource as resource_module
+import videos
 from common import detect_version, list_versions, load_config, save_config
 from progress import ProgressReporter
 
 console = Console()
 
-STEPS = ("info", "resource", "phira")
+STEPS = ("info", "resource", "video", "phira")
 
 
 class RichProgress(ProgressReporter):
@@ -129,6 +130,8 @@ def execute(steps, apk_path, version, config, logger):
                 gameInformation.run(apk_path, version, logger, reporter)
             if "resource" in steps:
                 resource_module.run(apk_path, version, config, logger, reporter)
+            if "video" in steps:
+                videos.run(apk_path, version, logger, reporter)
             if "phira" in steps:
                 phira.run(version, logger, reporter)
         console.print("[bold green]执行完成[/bold green]")
@@ -153,7 +156,7 @@ def execute_batch(config, logger):
             TimeElapsedColumn(),
             console=console,
         ) as progress:
-            count = batch.process_all(("info", "resource", "phira"), config, logger, RichProgress(progress))
+            count = batch.process_all(("info", "resource", "video", "phira"), config, logger, RichProgress(progress))
         console.print("[bold green]批量处理完成,共 %d 个 APK[/bold green]" % count)
     except KeyboardInterrupt:
         console.print("[bold yellow]已取消[/bold yellow]")
@@ -198,31 +201,33 @@ def interactive(args):
         console.print()
         show_header(config, apk_path)
         console.print(
-            "[1] 完整流程(信息 → 资源 → Phira 打包)\n"
+            "[1] 完整流程(信息 → 资源 → 视频 → Phira 打包)\n"
             "[2] 仅提取游戏信息\n"
             "[3] 仅提取资源\n"
-            "[4] 仅打包 Phira 谱面\n"
-            "[5] 修改配置\n"
-            "[6] 批量处理 input/ 文件夹\n"
+            "[4] 仅提取解锁动画视频\n"
+            "[5] 仅打包 Phira 谱面\n"
+            "[6] 修改配置\n"
+            "[7] 批量处理 input/ 文件夹\n"
             "[0] 退出"
         )
-        choice = Prompt.ask("请选择", choices=["0", "1", "2", "3", "4", "5", "6"], default="1")
+        choice = Prompt.ask("请选择", choices=["0", "1", "2", "3", "4", "5", "6", "7"], default="1")
         if choice == "0":
             break
-        if choice == "5":
+        if choice == "6":
             edit_config(config)
             continue
-        if choice == "6":
+        if choice == "7":
             execute_batch(config, logger)
             continue
 
         steps = {
-            "1": ("info", "resource", "phira"),
+            "1": ("info", "resource", "video", "phira"),
             "2": ("info",),
             "3": ("resource",),
-            "4": ("phira",),
+            "4": ("video",),
+            "5": ("phira",),
         }[choice]
-        if steps & {"info", "resource"}:
+        if steps & {"info", "resource", "video"}:
             if not apk_path:
                 apk_path = ask_apk_path()
             version = resolve_version(apk_path, version)
@@ -246,6 +251,7 @@ def parse_args():
     parser.add_argument("--info", action="store_true", help="直跑:仅提取游戏信息")
     parser.add_argument("--resource", action="store_true", help="直跑:仅提取资源")
     parser.add_argument("--phira", action="store_true", help="直跑:仅打包 Phira 谱面")
+    parser.add_argument("--video", action="store_true", help="直跑:仅提取解锁动画视频")
     parser.add_argument("--input", action="store_true", help="批量处理 input/ 目录(完整流程)")
     return parser.parse_args()
 
@@ -266,11 +272,11 @@ def main():
         interactive(args)
         return
 
-    if steps & {"info", "resource"} and not args.apk:
+    if steps & {"info", "resource", "video"} and not args.apk:
         console.print("[red]该步骤需要 --apk 提供 APK 路径[/red]")
         raise SystemExit(1)
-    version = resolve_version(args.apk, args.version) if steps & {"info", "resource"} else args.version
-    if "phira" in steps and not version and not (steps & {"info", "resource"}):
+    version = resolve_version(args.apk, args.version) if steps & {"info", "resource", "video"} else args.version
+    if "phira" in steps and not version and not (steps & {"info", "resource", "video"}):
         raise SystemExit("仅打包时需要 --version 指定版本号")
     execute(steps, args.apk, version, load_config(), make_rich_logger())
 

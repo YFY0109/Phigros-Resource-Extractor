@@ -18,6 +18,7 @@ import batch
 import gameInformation
 import phira
 import resource as resource_module
+import videos
 from common import detect_version, list_versions, load_config
 from progress import ProgressReporter, TaskCancelled
 
@@ -78,6 +79,7 @@ PAGE = """<!DOCTYPE html>
   <div class="checks">
     <label><input type="checkbox" id="step-info" checked> 游戏信息</label>
     <label><input type="checkbox" id="step-resource" checked> 提取资源</label>
+    <label><input type="checkbox" id="step-video" checked> 解锁动画视频</label>
     <label><input type="checkbox" id="step-phira" checked> Phira 打包</label>
   </div>
   <button id="start">开始</button>
@@ -116,6 +118,7 @@ document.getElementById('start').onclick = async () => {
   const steps = [];
   if (document.getElementById('step-info').checked) steps.push('info');
   if (document.getElementById('step-resource').checked) steps.push('resource');
+  if (document.getElementById('step-video').checked) steps.push('video');
   if (document.getElementById('step-phira').checked) steps.push('phira');
   const body = {
     apk: document.getElementById('apk').value,
@@ -213,12 +216,14 @@ def run_task(steps, apk_path, version):
     progress = WebProgress()
     try:
         if "batch" in steps:
-            batch.process_all(("info", "resource", "phira"), load_config(), logger, progress)
+            batch.process_all(("info", "resource", "video", "phira"), load_config(), logger, progress)
         else:
             if "info" in steps:
                 gameInformation.run(apk_path, version, logger, progress)
             if "resource" in steps:
                 resource_module.run(apk_path, version, load_config(), logger, progress)
+            if "video" in steps:
+                videos.run(apk_path, version, logger, progress)
             if "phira" in steps:
                 phira.run(version, logger, progress)
         with STATE_LOCK:
@@ -268,12 +273,12 @@ def api_run():
     data = request.get_json(force=True, silent=True) or {}
     apk_path = (data.get("apk") or "").strip().strip('"')
     version = (data.get("version") or "").strip() or None
-    steps = [s for s in data.get("steps", []) if s in ("info", "resource", "phira", "batch")]
+    steps = [s for s in data.get("steps", []) if s in ("info", "resource", "video", "phira", "batch")]
 
     if not steps:
         return jsonify(ok=False, error="请至少选择一个步骤"), 400
     batch_mode = "batch" in steps
-    needs_apk = any(s in ("info", "resource") for s in steps) and not batch_mode
+    needs_apk = any(s in ("info", "resource", "video") for s in steps) and not batch_mode
     if needs_apk:
         if not apk_path or not os.path.isfile(apk_path):
             return jsonify(ok=False, error="APK 路径不存在,请检查后重试"), 400

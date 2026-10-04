@@ -30,7 +30,7 @@ uv run python src/tui.py --input
 
 - 校验 APK 是否为 Phigros(检查 Addressables 目录与 Unity 数据文件),非 Phigros 文件自动跳过;
 - 计算完整 SHA-256,已处理过的 APK(见 `outputs/processed.json` 台账)不会重复处理;
-- 对每个新 APK 执行完整流程(信息 → 资源 → Phira 打包)。
+- 对每个新 APK 执行完整流程(信息 → 资源 → 解锁动画视频 → Phira 打包)。
 
 ## 使用方法
 
@@ -56,7 +56,7 @@ uv run python src/tui.py --input
    ```sh
    uv run python src/gameInformation.py <Phigros APK 路径>   # 提取游戏信息
    uv run python src/resource.py <Phigros APK 路径>          # 提取资源
-   uv run python src/videos.py <Phigros APK 路径>            # 提取解锁动画视频(可选)
+   uv run python src/videos.py <Phigros APK 路径>            # 提取解锁动画视频
    uv run python src/phira.py                                # 打包 Phira 自制谱
    ```
 

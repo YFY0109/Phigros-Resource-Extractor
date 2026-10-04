@@ -12,6 +12,7 @@ from zipfile import ZipFile, BadZipFile
 import gameInformation
 import phira
 import resource as resource_module
+import videos
 from common import detect_version, version_dir
 
 INPUT_DIR = "input"
@@ -112,6 +113,8 @@ def process_all(steps, config, logger, progress):
             gameInformation.run(path, version, logger, progress)
         if "resource" in steps:
             resource_module.run(path, version, config, logger, progress)
+        if "video" in steps:
+            videos.run(path, version, logger, progress)
         if "phira" in steps:
             phira.run(version, logger, progress)
         history[digest] = {
