@@ -40,6 +40,10 @@ DEFAULT_CONFIG = {
         "other_song": 0,
         "side_story": 0,
     },
+    "dedupe": {
+        "enabled": True,
+        "sample_bytes": 65536,
+    },
 }
 
 

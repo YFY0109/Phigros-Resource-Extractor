@@ -11,5 +11,9 @@
     "main_story": 0,
     "other_song": 0,
     "side_story": 0
+  },
+  "dedupe": {
+    "enabled": true,
+    "sample_bytes": 65536
   }
 }

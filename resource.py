@@ -21,6 +21,7 @@ from UnityPy.classes import AudioClip
 from UnityPy.enums import ClassIDType
 
 from common import detect_version, find_installed_apk, load_config, resource_dir, version_dir
+from dedupe import DedupeStore, write_file
 from log import init_console_logger
 
 # 需要读取的 Unity 资产类型
@@ -53,9 +54,13 @@ class ByteReader:
 
 
 class AssetWriter:
-    """单线程落盘队列,避免多线程同时写文件。close() 会等待队列清空后退出。"""
+    """单线程落盘队列,避免多线程同时写文件。close() 会等待队列清空后退出。
 
-    def __init__(self):
+    store 提供时(去重功能开启),文件由 DedupeStore 处理(硬链接优先、自动回退写入)。
+    """
+
+    def __init__(self, store=None):
+        self._store = store
         self._queue = Queue()
         self._thread = threading.Thread(target=self._consume, daemon=True)
         self._thread.start()
@@ -66,11 +71,10 @@ class AssetWriter:
             if item is None:
                 break
             path, data = item
-            with open(path, "wb") as f:
-                if isinstance(data, BytesIO):
-                    f.write(data.getbuffer())
-                else:
-                    f.write(data)
+            if self._store is not None:
+                self._store.write(path, data)
+            else:
+                write_file(path, data)
 
     def put(self, path, data):
         self._queue.put((path, data))
@@ -237,7 +241,11 @@ def run(apk_path, version, config, logger):
 
     table = parse_catalog(apk_path, logger)
 
-    writer = AssetWriter()
+    dedupe_config = config.get("dedupe", {})
+    store = None
+    if dedupe_config.get("enabled", True):
+        store = DedupeStore(version, int(dedupe_config.get("sample_bytes", 65536)), logger)
+    writer = AssetWriter(store)
     started = time.time()
     update = config["update"]
     try:
@@ -269,6 +277,8 @@ def run(apk_path, version, config, logger):
                         logger.exception("资产保存失败,已跳过: %s", i_key)
     finally:
         writer.close()
+        if store is not None:
+            store.report()
     logger.info("%f秒" % round(time.time() - started, 4))
 
 
