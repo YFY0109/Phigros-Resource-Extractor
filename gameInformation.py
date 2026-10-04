@@ -1,18 +1,26 @@
+"""从 Phigros APK 提取游戏信息(定数、曲目、收藏品、头像映射、tips 等)。
+
+用法:
+    python gameInformation.py <Phigros APK 路径> [--version X.Y.Z]
+
+产物输出到 outputs/<版本>/info/。
+"""
+import argparse
 import json
 import os
-import sys
-from UnityPy import Environment
 import zipfile
 from io import BytesIO
+
+from UnityPy import Environment
+
+from common import detect_version, find_installed_apk, version_dir
 from log import init_console_logger
-import logging
 
-DEBUG = False
 
-def run(path, logger):
-    Tips = None
-    GameInformation = None
-    Collections = None
+def run(path, version, logger):
+    output_dir = os.path.join(version_dir(version), "info")
+    os.makedirs(output_dir, exist_ok=True)
+
     with open("typetree.json") as f:
         typetree = json.load(f)
     env = Environment()
@@ -25,6 +33,10 @@ def run(path, logger):
                 env.load_file(BytesIO(f.read()), name="assets/bin/Data/globalgamemanagers.assets")
             with apk.open("assets/bin/Data/level0") as f:
                 env.load_file(BytesIO(f.read()))
+
+    game_information = None
+    collections = None
+    tips = None
     for obj in env.objects:
         if obj.type.name != "MonoBehaviour":
             continue
@@ -35,18 +47,24 @@ def run(path, logger):
                 continue
             script_name = script.read().name
         except Exception:
-            continue   # Skip when fail
+            continue  # 无法读取脚本的 MonoBehaviour 直接跳过
 
         if script_name == "GameInformation":
-            GameInformation = obj.read_typetree(typetree["GameInformation"])
+            game_information = obj.read_typetree(typetree["GameInformation"])
         elif script_name == "GetCollectionControl":
-            Collections = obj.read_typetree(typetree["GetCollectionControl"], True)
+            collections = obj.read_typetree(typetree["GetCollectionControl"], True)
         elif script_name == "TipsProvider":
-            Tips = obj.read_typetree(typetree["TipsProvider"], True)
+            tips = obj.read_typetree(typetree["TipsProvider"], True)
+
+    if game_information is None or collections is None or tips is None:
+        raise RuntimeError(
+            "APK 中缺少必要的 MonoBehaviour(GameInformation/GetCollectionControl/TipsProvider),"
+            "typetree.json 可能与游戏版本不匹配"
+        )
 
     difficulty = []
     table = []
-    for key, songs in GameInformation["song"].items():
+    for key, songs in game_information["song"].items():
         if key == "otherSongs":
             continue
         for song in songs:
@@ -58,71 +76,89 @@ def run(path, logger):
             for i in range(len(song["difficulty"])):
                 song["difficulty"][i] = str(round(song["difficulty"][i], 1))
             song["songsId"] = song["songsId"][:-2]
-            difficulty.append([song["songsId"]]+song["difficulty"])
+            difficulty.append([song["songsId"]] + song["difficulty"])
             table.append((song["songsId"], song["songsName"], song["composer"], song["illustrator"], *song["charter"]))
 
     logger.info(difficulty)
     logger.info(table)
 
-    with open("info/difficulty.tsv", "w", encoding="utf8") as f:
+    with open(os.path.join(output_dir, "difficulty.tsv"), "w", encoding="utf8") as f:
         for item in difficulty:
             f.write("\t".join(map(str, item)))
             f.write("\n")
 
-    with open("info/info.tsv", "w", encoding="utf8") as f:
+    with open(os.path.join(output_dir, "info.tsv"), "w", encoding="utf8") as f:
         for item in table:
             f.write("\t".join(item))
             f.write("\n")
 
     single = []
     illustration = []
-    for key in GameInformation["keyStore"]:
+    for key in game_information["keyStore"]:
         if key["kindOfKey"] == 0:
             single.append(key["keyName"])
         elif key["kindOfKey"] == 2 and key["keyName"] != "Introduction" and key["keyName"] not in single:
             illustration.append(key["keyName"])
 
-    with open("info/single.txt", "w", encoding="utf8") as f:
+    with open(os.path.join(output_dir, "single.txt"), "w", encoding="utf8") as f:
         for item in single:
             f.write("%s\n" % item)
 
-    with open("info/illustration.txt", "w", encoding="utf8") as f:
+    with open(os.path.join(output_dir, "illustration.txt"), "w", encoding="utf8") as f:
         for item in illustration:
             f.write("%s\n" % item)
     logger.info(single)
     logger.info(illustration)
 
-    D = {}
-    for item in Collections.collectionItems:
-        if item.key in D:
-            D[item.key][1] = item.subIndex
+    collection_titles = {}
+    for item in collections.collectionItems:
+        if item.key in collection_titles:
+            collection_titles[item.key][1] = item.subIndex
         else:
-            D[item.key] = [item.multiLanguageTitle.chinese, item.subIndex]
+            collection_titles[item.key] = [item.multiLanguageTitle.chinese, item.subIndex]
 
-    with open("info/collection.tsv", "w", encoding="utf8") as f:
-        for key, value in D.items():
+    with open(os.path.join(output_dir, "collection.tsv"), "w", encoding="utf8") as f:
+        for key, value in collection_titles.items():
             f.write("%s\t%s\t%s\n" % (key, value[0], value[1]))
 
-    with open("info/avatar.txt", "w", encoding="utf8") as avatar:
-        with open("info/tmp.tsv", "w", encoding="utf8") as tmp:
-            for item in Collections.avatars:
+    with open(os.path.join(output_dir, "avatar.txt"), "w", encoding="utf8") as avatar:
+        with open(os.path.join(output_dir, "tmp.tsv"), "w", encoding="utf8") as tmp:
+            for item in collections.avatars:
                 avatar.write(item.name)
                 avatar.write("\n")
                 tmp.write("%s\t%s\n" % (item.name, item.addressableKey[7:]))
 
-    with open("info/tips.txt", "w", encoding="utf8") as f:
-        for tip in Tips.tips[0].tips:
+    with open(os.path.join(output_dir, "tips.txt"), "w", encoding="utf8") as f:
+        for tip in tips.tips[0].tips:
             f.write(tip)
             f.write("\n")
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="从 Phigros APK 提取游戏信息")
+    parser.add_argument("apk", nargs="?", help="Phigros APK 路径(Android 上可省略,自动定位)")
+    parser.add_argument("--version", help="游戏版本号(默认从 APK 文件名识别)")
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    apk_path = args.apk
+    if not apk_path:
+        if os.path.isdir("/data/"):
+            apk_path = find_installed_apk()
+        else:
+            raise SystemExit("请提供 Phigros APK 路径")
+    version = detect_version(apk_path, args.version)
+    logger = init_console_logger()
+    logger.info("版本 %s,输出目录 %s" % (version, version_dir(version)))
+    try:
+        run(apk_path, version, logger)
+    except RuntimeError as e:
+        # 版本不匹配等可预期的失败:输出清晰错误并以非零码退出
+        logger.error(str(e))
+        raise SystemExit(1)
+
+
 if __name__ == "__main__":
-    if len(sys.argv) == 1 and os.path.isdir("/data/"):
-        import subprocess
-        r = subprocess.run("pm path com.PigeonGames.Phigros",stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,shell=True)
-        file_path = r.stdout[8:-1].decode()
-    else:
-        file_path = sys.argv[1]
-    if not os.path.isdir("info"):
-        os.mkdir("info")
-    run(file_path, init_console_logger())
+    main()

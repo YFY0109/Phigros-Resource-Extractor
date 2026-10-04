@@ -9,7 +9,6 @@ import argparse
 import base64
 import json
 import os
-import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -21,7 +20,7 @@ from UnityPy import Environment
 from UnityPy.classes import AudioClip
 from UnityPy.enums import ClassIDType
 
-from common import detect_version, load_config, resource_dir, version_dir
+from common import detect_version, find_installed_apk, load_config, resource_dir, version_dir
 from log import init_console_logger
 
 # 需要读取的 Unity 资产类型
@@ -271,15 +270,6 @@ def run(apk_path, version, config, logger):
     finally:
         writer.close()
     logger.info("%f秒" % round(time.time() - started, 4))
-
-
-def find_installed_apk():
-    """Android:通过 pm 定位已安装的 Phigros APK。"""
-    result = subprocess.run(
-        "pm path com.PigeonGames.Phigros",
-        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=True,
-    )
-    return result.stdout[8:-1].decode()
 
 
 def parse_args():

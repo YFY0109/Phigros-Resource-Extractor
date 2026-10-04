@@ -4,6 +4,7 @@
 """
 import os
 import re
+import subprocess
 from configparser import ConfigParser
 
 # 提取产物输出根目录
@@ -80,3 +81,12 @@ def load_config(path="config.ini"):
             "other_song": parser["UPDATE"].getint("other_song"),
         },
     }
+
+
+def find_installed_apk():
+    """Android:通过 pm 定位已安装的 Phigros APK。"""
+    result = subprocess.run(
+        "pm path com.PigeonGames.Phigros",
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=True,
+    )
+    return result.stdout[8:-1].decode()
