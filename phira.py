@@ -1,108 +1,150 @@
+"""把 outputs/<版本>/ 下的提取产物打包为 Phira 的 .pez 自制谱文件。
+
+用法:
+    python phira.py [--version X.Y.Z]
+
+输入:outputs/<版本>/ 的 info/、charts/、illustrationsLowRes/、music/
+输出:outputs/<版本>/phira/<EZ|HD|IN|AT>/*.pez
+"""
+import argparse
 import os
 import shutil
 from zipfile import ZipFile, BadZipFile
 
-levels = ["EZ", "HD", "IN", "AT"]
+from common import list_versions, resource_dir, version_dir
+from log import init_console_logger
 
-# 删除旧目录并创建新目录
-try:
-    shutil.rmtree("phira", True)
-    os.mkdir("phira")
-    for level in levels:
-        os.mkdir(f"phira/{level}")
-except Exception as e:
-    print(f"错误：创建或删除目录时出错 - {e}")
-    exit(1)
+LEVELS = ("EZ", "HD", "IN", "AT")
 
-# 读取并解析 info.tsv 文件
-infos = {}
-try:
-    with open("info/info.tsv", encoding="utf8") as f:
-        while True:
-            line = f.readline()
-            if not line:
-                break
-            line = line[:-1].split("\t")
-            infos[line[0]] = {
-                "Name": line[1],
-                "Composer": line[2],
-                "Illustrator": line[3],
-                "Chater": line[4:]
-            }
-except FileNotFoundError:
-    print("错误：未找到 info.tsv 文件。请检查 info 目录是否存在且包含该文件。")
-    exit(1)
-except Exception as e:
-    print(f"错误：读取 info.tsv 时出错 - {e}")
-    exit(1)
 
-# 读取并解析 difficulty.tsv 文件
-try:
-    with open("info/difficulty.tsv", encoding="utf8") as f:
-        while True:
-            line = f.readline()
-            if not line:
-                break
-            line = line[:-1].split("\t")
-            if line[0] in infos:
-                infos[line[0]]["difficulty"] = line[1:]
-            else:
-                print(f"警告：difficulty.tsv 中的 ID {line[0]} 在 info.tsv 中未找到。")
-except FileNotFoundError:
-    print("错误：未找到 difficulty.tsv 文件。请检查 info 目录是否存在且包含该文件。")
-    exit(1)
-except Exception as e:
-    print(f"错误：读取 difficulty.tsv 时出错 - {e}")
-    exit(1)
+def parse_args():
+    parser = argparse.ArgumentParser(description="把提取产物打包为 Phira 的 .pez 自制谱")
+    parser.add_argument("--version", help="要打包的版本(默认取 outputs/ 下最新版本)")
+    return parser.parse_args()
 
-# 创建 .pez 文件
-for id, info in infos.items():
+
+def choose_version(override=None):
+    versions = list_versions()
+    if not versions:
+        raise SystemExit("outputs/ 下没有任何版本目录,请先运行 gameInformation.py 与 resource.py")
+    if override:
+        if override not in versions:
+            raise SystemExit("outputs/ 下不存在版本目录:%s" % override)
+        return override
+    return versions[0]
+
+
+def load_infos(info_path, logger):
+    """读取 info.tsv,返回 {歌曲ID: {Name, Composer, Illustrator, Chater}}。"""
+    infos = {}
     try:
-        print(f"正在处理：{info['Name']}，作曲者：{info['Composer']}")
-        for level_index in range(len(info.get("difficulty", []))):
-            level = levels[level_index]
-            pez_path = f"phira/{level}/{id}-{level}.pez"
-            try:
-                with ZipFile(pez_path, "x") as pez:
-                    # 写入 info.txt 内容
-                    info_txt_content = (
-                        f"#\n"
-                        f"Name: {info['Name']}\n"
-                        f"Song: {id}.ogg\n"
-                        f"Picture: {id}.png\n"
-                        f"Chart: {id}.json\n"
-                        f"Level: {level} Lv.{info['difficulty'][level_index]}\n"
-                        f"Composer: {info['Composer']}\n"
-                        f"Illustrator: {info['Illustrator']}\n"
-                        f"Charter: {info['Chater'][level_index]}"
-                    )
-                    pez.writestr("info.txt", info_txt_content)
+        with open(info_path, encoding="utf8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                parts = line.rstrip("\n").split("\t")
+                infos[parts[0]] = {
+                    "Name": parts[1],
+                    "Composer": parts[2],
+                    "Illustrator": parts[3],
+                    "Chater": parts[4:],
+                }
+    except FileNotFoundError:
+        raise SystemExit("错误:未找到 %s,请先运行 gameInformation.py" % info_path)
+    return infos
 
-                    # 添加文件到 .pez 压缩包
-                    try:
-                        pez.write(f"chart/{id}.0/{level}.json", f"{id}.json")
-                    except FileNotFoundError:
-                        print(f"警告：未找到 {id} 的 {level} 谱面文件 (chart/{id}.0/{level}.json)。")
 
-                    try:
-                        pez.write(f"IllustrationLowRes/{id}.png", f"{id}.png")
-                    except FileNotFoundError:
-                        try:
-                            pez.write(f"IllustrationLowRes/{id}_{level}.png", f"{id}.png")
-                        except FileNotFoundError:
-                            print(f"警告：未找到 {id} 的曲绘文件 (IllustrationLowRes/{id}.png)。")
+def apply_difficulties(infos, difficulty_path, logger):
+    """读取 difficulty.tsv,为每首歌补充难度列表。"""
+    try:
+        with open(difficulty_path, encoding="utf8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                parts = line.rstrip("\n").split("\t")
+                if parts[0] in infos:
+                    infos[parts[0]]["difficulty"] = parts[1:]
+                else:
+                    logger.warning("difficulty.tsv 中的 ID %s 在 info.tsv 中未找到", parts[0])
+    except FileNotFoundError:
+        raise SystemExit("错误:未找到 %s,请先运行 gameInformation.py" % difficulty_path)
 
-                    try:
-                        pez.write(f"music/{id}.ogg", f"{id}.ogg")
-                    except FileNotFoundError:
-                        print(f"警告：未找到 {id} 的音乐文件 (music/{id}.ogg)。")
 
-            except BadZipFile as e:
-                print(f"错误：创建 .pez 文件 {pez_path} 时出错 - {e}")
-            except Exception as e:
-                print(f"错误：写入 .pez 文件 {pez_path} 时出错 - {e}")
+def build_pez(version, level, song_id, info, logger):
+    """为单个歌曲的单个难度生成 .pez 压缩包。"""
+    level_index = LEVELS.index(level)
+    pez_path = os.path.join(version_dir(version), "phira", level, "%s-%s.pez" % (song_id, level))
+    with ZipFile(pez_path, "x") as pez:
+        info_txt_content = (
+            "#\n"
+            "Name: %s\n" % info["Name"] +
+            "Song: %s.ogg\n" % song_id +
+            "Picture: %s.png\n" % song_id +
+            "Chart: %s.json\n" % song_id +
+            "Level: %s Lv.%s\n" % (level, info["difficulty"][level_index]) +
+            "Composer: %s\n" % info["Composer"] +
+            "Illustrator: %s\n" % info["Illustrator"] +
+            "Charter: %s" % info["Chater"][level_index]
+        )
+        pez.writestr("info.txt", info_txt_content)
 
-    except KeyError as e:
-        print(f"错误：ID {id} 缺少必要的键 {e}。")
+        chart_path = os.path.join(resource_dir(version, "chart"), "%s.0" % song_id, "%s.json" % level)
+        try:
+            pez.write(chart_path, "%s.json" % song_id)
+        except FileNotFoundError:
+            logger.warning("未找到 %s 的 %s 谱面文件 (%s)", song_id, level, chart_path)
+
+        picture_dir = resource_dir(version, "illustrationLowRes")
+        for picture in ("%s.png" % song_id, "%s_%s.png" % (song_id, level)):
+            picture_path = os.path.join(picture_dir, picture)
+            if os.path.exists(picture_path):
+                pez.write(picture_path, "%s.png" % song_id)
+                break
+        else:
+            logger.warning("未找到 %s 的曲绘文件", song_id)
+
+        music_path = os.path.join(resource_dir(version, "music"), "%s.ogg" % song_id)
+        try:
+            pez.write(music_path, "%s.ogg" % song_id)
+        except FileNotFoundError:
+            logger.warning("未找到 %s 的音乐文件 (%s)", song_id, music_path)
+
+
+def main():
+    args = parse_args()
+    version = choose_version(args.version)
+    logger = init_console_logger()
+    logger.info("打包版本 %s" % version)
+
+    infos = load_infos(os.path.join(version_dir(version), "info", "info.tsv"), logger)
+    apply_difficulties(infos, os.path.join(version_dir(version), "info", "difficulty.tsv"), logger)
+
+    # 重建打包输出目录
+    phira_root = os.path.join(version_dir(version), "phira")
+    try:
+        shutil.rmtree(phira_root, True)
+        for level in LEVELS:
+            os.makedirs(os.path.join(phira_root, level), exist_ok=True)
     except Exception as e:
-        print(f"意外错误：处理 ID {id} 时发生错误 - {e}")
+        logger.error("创建或删除目录时出错 - %s", e)
+        raise SystemExit(1)
+
+    for song_id, info in infos.items():
+        try:
+            logger.info("正在处理:%s,作曲者:%s", info["Name"], info["Composer"])
+            for level_index in range(len(info.get("difficulty", []))):
+                level = LEVELS[level_index]
+                try:
+                    build_pez(version, level, song_id, info, logger)
+                except BadZipFile as e:
+                    logger.error("创建 .pez 文件时出错 - %s", e)
+                except Exception as e:
+                    logger.error("写入 .pez 文件时出错 - %s", e)
+        except KeyError as e:
+            logger.error("ID %s 缺少必要的键 %s", song_id, e)
+        except Exception as e:
+            logger.error("处理 ID %s 时发生意外错误 - %s", song_id, e)
+
+
+if __name__ == "__main__":
+    main()
