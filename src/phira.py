@@ -4,7 +4,7 @@
     python phira.py [--version X.Y.Z]
 
 输入:outputs/<版本>/ 的 info/、charts/、illustrationsLowRes/、music/
-输出:outputs/<版本>/phira/<EZ|HD|IN|AT>/*.pez
+输出:outputs/<版本>/phira/<曲目>.0/<难度>.pez
 """
 import argparse
 import csv
