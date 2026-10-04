@@ -133,6 +133,9 @@ def edit_config(config):
     for key in ("main_story", "other_song", "side_story"):
         config["update"][key] = IntPrompt.ask("增量 %s(0 表示全量)" % key, default=config["update"][key])
     config["dedupe"]["enabled"] = Confirm.ask("启用跨版本去重(硬链接)", default=config["dedupe"]["enabled"])
+    webui = config.setdefault("webui", {})
+    webui["host"] = Prompt.ask("WebUI 监听地址", default=webui.get("host", "127.0.0.1"))
+    webui["port"] = IntPrompt.ask("WebUI 监听端口", default=int(webui.get("port", 8000)))
     save_config(config)
     console.print("[green]配置已保存到 config.json[/green]")
 

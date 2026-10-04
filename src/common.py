@@ -43,6 +43,10 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "sample_bytes": 65536,
     },
+    "webui": {
+        "host": "127.0.0.1",
+        "port": 8000,
+    },
 }
 
 

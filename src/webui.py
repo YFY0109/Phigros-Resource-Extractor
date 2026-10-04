@@ -3,7 +3,8 @@
 用法:
     uv run python src/webui.py [--host 127.0.0.1] [--port 8000]
 
-然后浏览器访问 http://127.0.0.1:8000。
+监听地址与端口读取 config.json 的 `webui` 段(`--host`/`--port` 可覆盖),
+然后浏览器访问对应地址(默认 http://127.0.0.1:8000)。
 """
 import argparse
 import logging
@@ -238,15 +239,19 @@ def api_run():
     return jsonify(ok=True, version=version)
 
 
-def parse_args():
+def parse_args(config):
+    webui = config.get("webui", {})
     parser = argparse.ArgumentParser(description="Phigros 资源提取器 WebUI")
-    parser.add_argument("--host", default="127.0.0.1", help="监听地址(默认 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8000, help="监听端口(默认 8000)")
+    parser.add_argument("--host", default=webui.get("host", "127.0.0.1"),
+                        help="监听地址(默认读取 config.json 的 webui.host)")
+    parser.add_argument("--port", type=int, default=int(webui.get("port", 8000)),
+                        help="监听端口(默认读取 config.json 的 webui.port)")
     return parser.parse_args()
 
 
 def main():
-    args = parse_args()
+    config = load_config()
+    args = parse_args(config)
     print("请用浏览器访问 http://%s:%d" % (args.host, args.port))
     app.run(host=args.host, port=args.port)
 

@@ -20,7 +20,7 @@ uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/
 - 顺序有硬依赖:`resource.py` 增量模式要读 `outputs/<版本>/info/difficulty.csv`,必须先跑 `gameInformation.py`。
 - 快速验证(无需 APK):`uv run python -m py_compile src/common.py src/gameInformation.py src/resource.py src/phira.py`;完整验证需要真实 APK。
 - APK 路径为必填参数,由用户显式提供(已移除 Android 自动定位)。
-- `uv run python src/tui.py` 是交互式 TUI(rich 进度条、配置编辑、`--apk/--all` 直跑);`uv run python src/webui.py` 是浏览器 WebUI。两者与 CLI 共享 `progress.ProgressReporter` 进度接口,任务逻辑统一走各模块的 `run()`。
+- `uv run python src/tui.py` 是交互式 TUI(rich 进度条、配置编辑、`--apk/--all` 直跑);`uv run python src/webui.py` 是浏览器 WebUI(监听地址/端口读取 `config.json` 的 `webui`)。两者与 CLI 共享 `progress.ProgressReporter` 进度接口,任务逻辑统一走各模块的 `run()`。
 
 ## 注意事项
 
