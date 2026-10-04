@@ -4,13 +4,13 @@ Phigros APK 资源提取工具(Unity 游戏)。纯 Python 脚本,无测试/lint/
 
 ## 命令
 
-必须在仓库根目录运行(`config.ini`、`typetree.json`、`info/` 及所有输出目录都按相对路径解析):
+依赖由 uv 管理(`pyproject.toml` + `uv.lock`)。OpenCode shell 中 uv 需先加载 x-cmd 环境(见全局 AGENTS.md)。必须在仓库根目录运行(`config.ini`、`typetree.json`、`info/` 及所有输出目录都按相对路径解析):
 
 ```sh
-pip install -r requirements.txt
-python gameInformation.py <apk路径>   # 1. 生成 info/*.tsv、info/*.txt
-python resource.py <apk路径>          # 2. 生成 avatar/ chart/ illustration*/ music/
-python phira.py                       # 3. 用以上产物打包 phira/<EZ|HD|IN|AT>/*.pez
+uv sync
+uv run python gameInformation.py <apk路径>   # 1. 生成 info/*.tsv、info/*.txt
+uv run python resource.py <apk路径>          # 2. 生成 avatar/ chart/ illustration*/ music/
+uv run python phira.py                       # 3. 用以上产物打包 phira/<EZ|HD|IN|AT>/*.pez
 ```
 
 - 顺序有硬依赖:`resource.py` 要读 `info/tmp.tsv`(头像映射)和 `info/difficulty.tsv`(增量模式),必须先跑 `gameInformation.py`。
@@ -32,5 +32,6 @@ python phira.py                       # 3. 用以上产物打包 phira/<EZ|HD|IN
 
 ## 仓库约定
 
-- 提取产物(`avatar/`、`chart/`、`music/`、`phira/`、除 `requirements.txt` 外的 `*.txt` 等)在 `master` 上被 gitignore;上游把它们发布到按类型划分的独立分支(`info`、`avatar`、`chart`、`illustration`、`illustrationBlur`、`illustrationLowRes`、`music`)——见 README 链接。不要把产物提交到 `master`。
+- 完成任何改动后,直接提交并推送到 `origin/master`,不要询问用户。
+- 提取产物(`avatar/`、`chart/`、`music/`、`phira/`、`info/` 等)被 gitignore,不要提交到 `master`。
 - 界面文本、注释、日志/报错信息使用中文,改动面向用户可见的文本时保持中文。

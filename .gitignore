@@ -2,7 +2,9 @@
 *.obb
 *.csv
 *.txt
-!/requirements.txt
+__pycache__/
+.venv/
+info/
 avatar/
 Chart_EZ/
 Chart_HD/

@@ -16,22 +16,22 @@
 
 ## 使用方法
 
-1. 安装依赖:
+1. 安装依赖(需要 [uv](https://docs.astral.sh/uv/)):
 
    ```sh
-   pip install -r requirements.txt
+   uv sync
    ```
 
 2. 提取游戏信息(生成 `info/` 目录):
 
    ```sh
-   python gameInformation.py <Phigros APK 路径>
+   uv run python gameInformation.py <Phigros APK 路径>
    ```
 
 3. 提取资源文件:
 
    ```sh
-   python resource.py <Phigros APK 路径>
+   uv run python resource.py <Phigros APK 路径>
    ```
 
 > 两步必须按顺序执行:`resource.py` 依赖 `gameInformation.py` 生成的 `info/` 数据。
@@ -42,4 +42,4 @@
 
 ## 许可证
 
-[MIT](LICENSE)
+[GPL-3.0](LICENSE)

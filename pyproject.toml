@@ -1,0 +1,17 @@
+[project]
+name = "phigros-resource-extractor"
+version = "0.1.0"
+description = "从 Phigros APK 中提取游戏资源与信息"
+readme = "README.md"
+license = "GPL-3.0-only"
+requires-python = ">=3.9"
+dependencies = [
+    "UnityPy==1.10.18",
+    "fsb5",
+]
+
+[project.optional-dependencies]
+gui = ["PyQt5"]
+
+[tool.uv]
+package = false
