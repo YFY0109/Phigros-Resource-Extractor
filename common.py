@@ -1,14 +1,18 @@
-"""公共工具:版本识别、输出路径与资源目录定义、配置读取。
+"""公共工具:版本识别、输出路径与资源目录定义、JSON 配置读写。
 
-提取产物统一存放于 outputs/<版本>/ 下,例如 outputs/4.0.1/charts/。
+配置文件为仓库根目录的 config.json。
 """
+import copy
+import json
 import os
 import re
 import subprocess
-from configparser import ConfigParser
 
 # 提取产物输出根目录
 OUTPUT_ROOT = "outputs"
+
+# 配置文件路径
+CONFIG_PATH = "config.json"
 
 # 资源类型 -> 输出子目录(相对 outputs/<版本>/)
 # resource.py 写入与 phira.py 读取共用此映射,避免两侧目录名不一致
@@ -21,14 +25,21 @@ RESOURCE_DIRS = {
     "music": "music",
 }
 
-# config.ini [TYPES] 中资源类型对应的配置键
-CONFIG_KEYS = {
-    "avatar": "avatar",
-    "chart": "Chart",
-    "illustrationBlur": "IllustrationBlur",
-    "illustrationLowRes": "IllustrationLowRes",
-    "illustration": "Illustration",
-    "music": "music",
+# 默认配置;load_config 会与用户配置递归合并(用户配置优先)
+DEFAULT_CONFIG = {
+    "types": {
+        "avatar": True,
+        "chart": True,
+        "illustrationBlur": True,
+        "illustrationLowRes": True,
+        "illustration": True,
+        "music": True,
+    },
+    "update": {
+        "main_story": 0,
+        "other_song": 0,
+        "side_story": 0,
+    },
 }
 
 
@@ -68,19 +79,33 @@ def _version_sort_key(version):
     return [int(part) if part.isdigit() else 0 for part in version.split(".")]
 
 
-def load_config(path="config.ini"):
-    """读取 config.ini:提取开关(types)与增量提取设置(update)。"""
-    parser = ConfigParser()
-    parser.read(path, "utf8")
-    types = parser["TYPES"]
-    return {
-        "types": {name: types.getboolean(key) for name, key in CONFIG_KEYS.items()},
-        "update": {
-            "main_story": parser["UPDATE"].getint("main_story"),
-            "side_story": parser["UPDATE"].getint("side_story"),
-            "other_song": parser["UPDATE"].getint("other_song"),
-        },
-    }
+def load_config(path=CONFIG_PATH):
+    """读取 JSON 配置并与默认值合并;文件不存在时生成默认配置。"""
+    if os.path.isfile(path):
+        with open(path, encoding="utf8") as f:
+            config = json.load(f)
+    else:
+        config = copy.deepcopy(DEFAULT_CONFIG)
+        save_config(config, path)
+    return _merge_defaults(config, DEFAULT_CONFIG)
+
+
+def save_config(config, path=CONFIG_PATH):
+    """把配置写回 JSON 文件(UTF-8、两空格缩进)。"""
+    with open(path, "w", encoding="utf8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+
+def _merge_defaults(config, defaults):
+    """递归合并默认值:用户配置缺失的键用默认值补齐,自定义的键保留。"""
+    merged = copy.deepcopy(defaults)
+    for key, value in config.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_defaults(value, merged[key])
+        else:
+            merged[key] = value
+    return merged
 
 
 def find_installed_apk():

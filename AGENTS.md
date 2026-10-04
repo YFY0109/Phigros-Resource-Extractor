@@ -4,7 +4,7 @@ Phigros APK 资源提取工具(Unity 游戏)。纯 Python 脚本,无测试/lint/
 
 ## 命令
 
-依赖由 uv 管理(`pyproject.toml` + `uv.lock`)。OpenCode shell 中 uv 需先加载 x-cmd 环境(见全局 AGENTS.md)。必须在仓库根目录运行(`config.ini`、`typetree.json` 及所有输出路径都按相对路径解析):
+依赖由 uv 管理(`pyproject.toml` + `uv.lock`)。OpenCode shell 中 uv 需先加载 x-cmd 环境(见全局 AGENTS.md)。必须在仓库根目录运行(`config.json`、`typetree.json` 及所有输出路径都按相对路径解析):
 
 ```sh
 uv sync
@@ -24,7 +24,7 @@ uv run python phira.py [--version 版本]      # 3. 打包 outputs/<版本>/phir
 
 - **不要升级 `UnityPy==1.10.18`**——代码依赖该版本的精确 API(`get_filtered_objects`、`read_typetree`),新版本会挂。
 - `fsb5`(音乐提取)先从系统库、再从**当前工作目录**加载 `libogg.dll`/`libvorbis.dll`(见 `fsb5/utils.py` 的 `load_lib`),因此音乐提取必须在仓库根目录运行。这两个 DLL 依赖 **MSVCR120.dll(VC++ 2013 运行库)**,缺失时报 `LibraryNotFoundException: Could not load the library 'vorbis'`(实测);`save_music` 延迟导入 fsb5,未启用音乐时无需该依赖。
-- `config.ini` 的 `[TYPES]` 控制提取的资源类型。`[UPDATE]` 计数全为 `0` 表示全量提取;否则只提取各分类最新 N 首(主线/单曲/支线按 `resource.py` 中 `MAIN_STORY_END`、`OTHER_SONG_END` 两个锚点曲 ID 分段,锚点跟随游戏曲目表,游戏更新后可能需要调整)。
+- `config.json` 的 `types` 控制提取的资源类型。`update` 计数全为 `0` 表示全量提取;否则只提取各分类最新 N 首(主线/单曲/支线按 `resource.py` 中 `MAIN_STORY_END`、`OTHER_SONG_END` 两个锚点曲 ID 分段,锚点跟随游戏曲目表,游戏更新后可能需要调整)。
 - 资源类型到输出目录的映射集中在 `common.RESOURCE_DIRS`,`resource.py` 写入与 `phira.py` 读取共用,不要再硬编码目录名。
 - `main.py` 已腐烂/无法运行(`from . import resource` 相对导入错误、旧接口签名),不要以它为范本;用 CLI 脚本或 `gui.py`。
 - `split.py`/`split.sh` 处理的是 `music/*.wav`,与当前 `.ogg` 输出不匹配——视为已过时。

@@ -1,0 +1,15 @@
+{
+  "types": {
+    "avatar": true,
+    "chart": true,
+    "illustrationBlur": true,
+    "illustrationLowRes": true,
+    "illustration": true,
+    "music": true
+  },
+  "update": {
+    "main_story": 0,
+    "other_song": 0,
+    "side_story": 0
+  }
+}

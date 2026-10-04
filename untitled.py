@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import configparser
 import os
 import subprocess
 import sys
@@ -14,9 +13,7 @@ import sys
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QFileDialog
 
-
-def a(b):
-    return str(b).lower()
+from common import load_config, save_config
 
 
 class Ui_Form(object):
@@ -125,29 +122,14 @@ class Ui_Form(object):
         self.generateCustomChartPushButton.clicked.connect(self.build_pez_file)
 
     def checkboxstate(self):
-        chkl = []
-        chkAvatarStatus = a(bool(self.avatarCheckBox.isChecked()))
-        chkl.append(chkAvatarStatus)
-        chkChartStatus = a(bool(self.chartCheckBox.isChecked()))
-        chkl.append(chkChartStatus)
-        chkIllustrationStatus = a(bool(self.illustrationCheckBox.isChecked()))
-        chkl.append(chkIllustrationStatus)
-        chkIllustrationBlurStatus = a(bool(self.illustrationBlurCheckBox.isChecked()))
-        chkl.append(chkIllustrationBlurStatus)
-        chkIllustrationLowResStatus = a(
-            bool(self.illustrationLowResCheckBox.isChecked())
-        )
-        chkl.append(chkIllustrationLowResStatus)
-        chkMusicStatus = a(bool(self.musicCheckBox.isChecked()))
-        chkl.append(chkMusicStatus)
-
-        config = configparser.ConfigParser()
-        config.read("config.ini", encoding="utf-8")
-        config.set("TYPES", "avatar", chkl[0])
-        config.set("TYPES", "Chart", chkl[1])
-        config.set("TYPES", "Illustration", chkl[2])
-        config.set("TYPES", "IllustrationBlur", chkl[3])
-        config.set("TYPES", "IllustrationLowRes", chkl[4])
-        config.set("TYPES", "music", chkl[5])
-        with open("config.ini", "w", encoding="utf-8") as f:
-            config.write(f)
+        """把界面勾选状态写回 config.json(保留其余配置项)。"""
+        config = load_config()
+        config["types"] = {
+            "avatar": self.avatarCheckBox.isChecked(),
+            "chart": self.chartCheckBox.isChecked(),
+            "illustration": self.illustrationCheckBox.isChecked(),
+            "illustrationBlur": self.illustrationBlurCheckBox.isChecked(),
+            "illustrationLowRes": self.illustrationLowResCheckBox.isChecked(),
+            "music": self.musicCheckBox.isChecked(),
+        }
+        save_config(config)
