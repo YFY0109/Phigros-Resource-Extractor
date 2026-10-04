@@ -18,7 +18,7 @@ import gameInformation
 import phira
 import resource as resource_module
 from common import detect_version, list_versions, load_config
-from progress import ProgressReporter
+from progress import ProgressReporter, TaskCancelled
 
 app = Flask(__name__)
 
@@ -26,6 +26,8 @@ STATE_LOCK = threading.Lock()
 STATE = {
     "running": False,
     "done": False,
+    "cancelled": False,
+    "cancel_requested": False,
     "error": None,
     "stage": "",
     "current": 0,
@@ -74,6 +76,7 @@ PAGE = """<!DOCTYPE html>
   </div>
   <button id="start">开始</button>
   <button id="batch" style="background:#3a6b4f">批量处理 input/ 文件夹</button>
+  <button id="cancel" style="background:#8a4a3a">取消任务</button>
 </div>
 <div class="card">
   <div id="stage">空闲</div>
@@ -86,7 +89,7 @@ PAGE = """<!DOCTYPE html>
 async function refresh() {
   try {
     const s = await (await fetch('/api/status')).json();
-    document.getElementById('stage').textContent = s.error ? ('出错:' + s.error) : (s.done ? '完成' : (s.stage || '空闲'));
+    document.getElementById('stage').textContent = s.error ? ('出错:' + s.error) : (s.cancelled ? '已取消' : (s.done ? '完成' : (s.stage || '空闲')));
     const total = s.total || 0, cur = s.current || 0;
     const pct = total > 0 ? Math.min(100, Math.round(cur / total * 100)) : (s.running ? 100 : 0);
     document.getElementById('bar').style.width = pct + '%';
@@ -96,6 +99,8 @@ async function refresh() {
     logs.textContent = (s.logs || []).join('\\n');
     logs.scrollTop = logs.scrollHeight;
     document.getElementById('start').disabled = s.running;
+    document.getElementById('batch').disabled = s.running;
+    document.getElementById('cancel').disabled = !s.running;
   } catch (e) { /* 服务未就绪时忽略 */ }
 }
 document.getElementById('start').onclick = async () => {
@@ -118,6 +123,9 @@ document.getElementById('batch').onclick = async () => {
   const j = await r.json();
   if (!j.ok) alert(j.error);
   else refresh();
+};
+document.getElementById('cancel').onclick = async () => {
+  await fetch('/api/cancel', { method: 'POST' });
 };
 refresh();
 setInterval(refresh, 500);
@@ -147,7 +155,12 @@ class StateLogHandler(logging.Handler):
 
 
 class WebProgress(ProgressReporter):
-    """把进度事件写入共享状态。"""
+    """把进度事件写入共享状态;cancelled 读取取消请求。"""
+
+    @property
+    def cancelled(self):
+        with STATE_LOCK:
+            return bool(STATE.get("cancel_requested"))
 
     def start(self, description, total=None):
         with STATE_LOCK:
@@ -188,6 +201,10 @@ def run_task(steps, apk_path, version):
                 phira.run(version, logger, progress)
         with STATE_LOCK:
             STATE["done"] = True
+    except TaskCancelled:
+        with STATE_LOCK:
+            STATE["cancelled"] = True
+            STATE["done"] = True
     except SystemExit as e:
         with STATE_LOCK:
             STATE["error"] = str(e)
@@ -213,6 +230,15 @@ def api_status():
         snapshot = dict(STATE)
         snapshot["logs"] = list(STATE["logs"])
     return jsonify(snapshot)
+
+
+@app.post("/api/cancel")
+def api_cancel():
+    with STATE_LOCK:
+        if not STATE["running"]:
+            return jsonify(ok=False, error="没有正在运行的任务"), 409
+        STATE["cancel_requested"] = True
+    return jsonify(ok=True)
 
 
 @app.post("/api/run")
@@ -244,8 +270,8 @@ def api_run():
         if STATE["running"]:
             return jsonify(ok=False, error="已有任务在运行,请等待完成"), 409
         STATE.update(
-            running=True, done=False, error=None, stage="准备中",
-            current=0, total=0, message="", version=version, logs=[],
+            running=True, done=False, cancelled=False, cancel_requested=False,
+            error=None, stage="准备中", current=0, total=0, message="", version=version, logs=[],
         )
     threading.Thread(target=run_task, args=(steps, apk_path, version), daemon=True).start()
     return jsonify(ok=True, version=version)

@@ -103,6 +103,7 @@ def process_all(steps, config, logger, progress):
     logger.info("共 %d 个 APK 待处理", len(pending))
     history = load_history()
     for index, item in enumerate(pending, 1):
+        progress.check_cancelled()
         path, version, digest = item["path"], item["version"], item["sha256"]
         logger.info("=== [%d/%d] %s(版本 %s)===", index, len(pending), os.path.basename(path), version)
         if "info" in steps:

@@ -50,6 +50,7 @@ def read_typetree(obj, typetree_data, script_name, read_monobehaviour=False):
 def run(path, version, logger, progress=None):
     progress = progress or NULL_PROGRESS
     progress.start("解析游戏信息")
+    progress.check_cancelled()
     output_dir = os.path.join(version_dir(version), "info")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -112,6 +113,7 @@ def run(path, version, logger, progress=None):
             difficulty.append([song["songsId"]] + song["difficulty"])
             table.append((song["songsId"], song["songsName"], song["composer"], song["illustrator"], *song["charter"]))
 
+    progress.check_cancelled()
     logger.info(difficulty)
     logger.info(table)
     progress.advance("已解析游戏数据")

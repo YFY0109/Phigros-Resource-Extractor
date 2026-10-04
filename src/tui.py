@@ -119,6 +119,8 @@ def execute(steps, apk_path, version, config, logger):
             if "phira" in steps:
                 phira.run(version, logger, reporter)
         console.print("[bold green]执行完成[/bold green]")
+    except KeyboardInterrupt:
+        console.print("[bold yellow]已取消[/bold yellow]")
     except SystemExit as e:
         console.print("[bold red]执行中断:%s[/bold red]" % escape(str(e)))
     except Exception:
@@ -140,6 +142,8 @@ def execute_batch(config, logger):
         ) as progress:
             count = batch.process_all(("info", "resource", "phira"), config, logger, RichProgress(progress))
         console.print("[bold green]批量处理完成,共 %d 个 APK[/bold green]" % count)
+    except KeyboardInterrupt:
+        console.print("[bold yellow]已取消[/bold yellow]")
     except SystemExit as e:
         console.print("[bold red]批量处理中断:%s[/bold red]" % escape(str(e)))
     except Exception:

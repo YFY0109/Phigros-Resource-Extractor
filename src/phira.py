@@ -132,6 +132,7 @@ def run(version, logger, progress=None):
     progress.start("打包 Phira 自制谱", total=len(infos))
     created = 0
     for song_id, info in infos.items():
+        progress.check_cancelled()
         try:
             logger.info("正在处理:%s,作曲者:%s", info["Name"], info["Composer"])
             for level_index in range(len(info.get("difficulty", []))):

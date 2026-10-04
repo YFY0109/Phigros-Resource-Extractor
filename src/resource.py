@@ -258,6 +258,7 @@ def run(apk_path, version, config, logger, progress=None):
                 progress.start("提取资源(全量)", total=len(table))
                 with ZipFile(apk_path) as apk:
                     for key, entry in table:
+                        progress.check_cancelled()
                         process_bundle(key, entry, apk, pool, writer, config, version, logger)
                         progress.advance(key)
             else:
@@ -274,6 +275,7 @@ def run(apk_path, version, config, logger, progress=None):
                 env = Environment()
                 with ZipFile(apk_path) as apk:
                     for key, entry in table:
+                        progress.check_cancelled()
                         if key[:7] == "avatar.":
                             if load_bundle(env, apk, key, entry, logger):
                                 progress.advance(key)
@@ -284,6 +286,7 @@ def run(apk_path, version, config, logger, progress=None):
                                     progress.advance(key)
                                 break
                 for i_key, i_entry in env.files.items():
+                    progress.check_cancelled()
                     try:
                         save_asset(i_key, i_entry, writer, pool, config, version, logger)
                     except Exception:
