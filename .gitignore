@@ -6,13 +6,10 @@ __pycache__/
 .venv/
 info/
 avatar/
-Chart_EZ/
-Chart_HD/
-Chart_IN/
-Chart_AT/
-Illustration/
-IllustrationBlur/
-IllustrationLowRes/
+chart/
+illustration/
+illustrationBlur/
+illustrationLowRes/
 music/
 splited_music/
 phira/
