@@ -6,7 +6,6 @@ import copy
 import json
 import os
 import re
-import subprocess
 
 # 提取产物输出根目录
 OUTPUT_ROOT = "outputs"
@@ -110,12 +109,3 @@ def _merge_defaults(config, defaults):
         else:
             merged[key] = value
     return merged
-
-
-def find_installed_apk():
-    """Android:通过 pm 定位已安装的 Phigros APK。"""
-    result = subprocess.run(
-        "pm path com.PigeonGames.Phigros",
-        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=True,
-    )
-    return result.stdout[8:-1].decode()

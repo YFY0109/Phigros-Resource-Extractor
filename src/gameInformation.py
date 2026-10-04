@@ -14,7 +14,7 @@ from io import BytesIO
 
 from UnityPy import Environment
 
-from common import detect_version, find_installed_apk, version_dir
+from common import detect_version, version_dir
 from log import init_console_logger
 
 # 版本专属 typetree 存放目录;未找到时回退到根目录的 typetree.json
@@ -161,24 +161,18 @@ def run(path, version, logger):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="从 Phigros APK 提取游戏信息")
-    parser.add_argument("apk", nargs="?", help="Phigros APK 路径(Android 上可省略,自动定位)")
+    parser.add_argument("apk", help="Phigros APK 路径")
     parser.add_argument("--version", help="游戏版本号(默认从 APK 文件名识别)")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    apk_path = args.apk
-    if not apk_path:
-        if os.path.isdir("/data/"):
-            apk_path = find_installed_apk()
-        else:
-            raise SystemExit("请提供 Phigros APK 路径")
-    version = detect_version(apk_path, args.version)
+    version = detect_version(args.apk, args.version)
     logger = init_console_logger()
     logger.info("版本 %s,输出目录 %s" % (version, version_dir(version)))
     try:
-        run(apk_path, version, logger)
+        run(args.apk, version, logger)
     except RuntimeError as e:
         # 版本不匹配等可预期的失败:输出清晰错误并以非零码退出
         logger.error(str(e))

@@ -51,8 +51,6 @@
 
 > 第 2、3 步需按顺序执行:`resource.py` 的增量提取依赖 `gameInformation.py` 生成的 `outputs/<版本>/info/` 数据。
 
-在 Android 设备上不带参数运行时会通过 `pm path com.PigeonGames.Phigros` 自动定位已安装的 APK。
-
 ## 许可证
 
 [GPL-3.0](LICENSE)

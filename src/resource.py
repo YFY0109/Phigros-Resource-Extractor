@@ -21,7 +21,7 @@ from UnityPy import Environment
 from UnityPy.classes import AudioClip
 from UnityPy.enums import ClassIDType
 
-from common import detect_version, find_installed_apk, load_config, resource_dir, version_dir
+from common import detect_version, load_config, resource_dir, version_dir
 from dedupe import DedupeStore, write_file
 from log import init_console_logger
 
@@ -286,23 +286,17 @@ def run(apk_path, version, config, logger):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="从 Phigros APK 提取资源")
-    parser.add_argument("apk", nargs="?", help="Phigros APK 路径(Android 上可省略,自动定位)")
+    parser.add_argument("apk", help="Phigros APK 路径")
     parser.add_argument("--version", help="游戏版本号(默认从 APK 文件名识别)")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    apk_path = args.apk
-    if not apk_path:
-        if os.path.isdir("/data/"):
-            apk_path = find_installed_apk()
-        else:
-            raise SystemExit("请提供 Phigros APK 路径")
-    version = detect_version(apk_path, args.version)
+    version = detect_version(args.apk, args.version)
     logger = init_console_logger()
     logger.info("版本 %s,输出目录 %s" % (version, version_dir(version)))
-    run(apk_path, version, load_config(), logger)
+    run(args.apk, version, load_config(), logger)
 
 
 if __name__ == "__main__":

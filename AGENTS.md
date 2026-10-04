@@ -18,9 +18,8 @@ uv run python src/phira.py [--version 版本]      # 3. 打包 outputs/<版本>/
 - 版本号默认从 APK 文件名识别(如 `Phigros_4.0.1.apk` → `4.0.1`),可用 `--version` 覆盖;各脚本的版本必须一致。
 - 顺序有硬依赖:`resource.py` 增量模式要读 `outputs/<版本>/info/difficulty.csv`,必须先跑 `gameInformation.py`。
 - 快速验证(无需 APK):`uv run python -m py_compile src/common.py src/gameInformation.py src/resource.py src/phira.py`;完整验证需要真实 APK。
-- 在 Android 上(存在 `/data/` 目录)且不带参数运行时,脚本会通过 `pm path com.PigeonGames.Phigros` 自动定位 APK。
+- APK 路径为必填参数,由用户显式提供(已移除 Android 自动定位)。
 - `uv run python src/gui.py` 是 PyQt5 图形界面(先 `uv sync --extra gui`);内部经 `subprocess` 调用 `src/` 下的脚本。
-- `uv run python src/taptap.py` 是独立工具,用于从 TapTap 获取 Phigros APK 下载信息。
 
 ## 注意事项
 
