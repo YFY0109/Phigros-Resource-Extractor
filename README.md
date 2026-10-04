@@ -19,6 +19,8 @@
 
 ## 使用方法
 
+以下命令需在仓库根目录执行;源码位于 `src/`。
+
 1. 安装依赖(需要 [uv](https://docs.astral.sh/uv/)):
 
    ```sh
@@ -28,19 +30,19 @@
 2. 提取游戏信息:
 
    ```sh
-   uv run python gameInformation.py <Phigros APK 路径>
+   uv run python src/gameInformation.py <Phigros APK 路径>
    ```
 
 3. 提取资源文件:
 
    ```sh
-   uv run python resource.py <Phigros APK 路径>
+   uv run python src/resource.py <Phigros APK 路径>
    ```
 
 4. (可选)打包为 Phira 自制谱:
 
    ```sh
-   uv run python phira.py
+   uv run python src/phira.py
    ```
 
 版本号默认从 APK 文件名识别(如 `Phigros_4.0.1.apk` → `4.0.1`),也可以用 `--version` 指定。提取哪些类别可在 `config.json` 的 `types` 中配置(默认全部开启);`update` 可配置只提取各分类最新若干首。

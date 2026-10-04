@@ -92,8 +92,9 @@ class Ui_Form(object):
         self.apkPathTextEdit.setText(fileName_choose)
 
     def _run_script(self, script, *args):
-        """用当前解释器运行脚本(继承虚拟环境,且正确处理含空格的路径)。"""
-        subprocess.run([sys.executable, script, *args])
+        """用当前解释器运行同目录下的脚本(继承虚拟环境,且正确处理含空格的路径)。"""
+        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), script)
+        subprocess.run([sys.executable, script_path, *args])
 
     def extract_apk_file(self):
         self.checkboxstate()
