@@ -131,8 +131,8 @@ def run(path, version, logger, progress=None):
             table.append((song["songsId"], song["songsName"], song["composer"], song["illustrator"], *song["charter"]))
 
     progress.check_cancelled()
-    logger.info(difficulty)
-    logger.info(table)
+    logger.debug(difficulty)
+    logger.debug(table)
     progress.advance("已解析游戏数据")
 
     write_csv(os.path.join(output_dir, "difficulty.csv"), difficulty)
