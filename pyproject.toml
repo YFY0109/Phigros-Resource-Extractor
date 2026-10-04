@@ -8,6 +8,7 @@ requires-python = ">=3.9"
 dependencies = [
     "UnityPy==1.10.18",
     "fsb5",
+    "rich",
 ]
 
 [project.optional-dependencies]
