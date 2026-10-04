@@ -22,14 +22,15 @@ uv run python phira.py                       # 3. 用以上产物打包 phira/<E
 ## 注意事项
 
 - **不要升级 `UnityPy==1.10.18`**——代码依赖该版本的精确 API(`get_filtered_objects`、`read_typetree`),新版本会挂。
-- `fsb5` 先查系统库,找不到再从**当前工作目录**加载自带的 `libogg.dll`/`libvorbis.dll`(`fsb5/utils.py` 的 `load_lib`;Windows 上必需,勿删)。因此音乐提取必须在仓库根目录运行;仅当 `config.ini` 中 `music = true` 时才惰性导入 fsb5。
+- `fsb5` 先查系统库,找不到再从**当前工作目录**加载自带的 `libogg.dll`/`libvorbis.dll`(`fsb5/utils.py` 的 `load_lib`;Windows 上必需,勿删)。这两个 DLL 依赖 **MSVCR120.dll(VC++ 2013 运行库)**,缺失时报 `LibraryNotFoundException: Could not load the library 'vorbis'`(实测)。因此音乐提取必须在仓库根目录运行;仅当 `config.ini` 中 `music = true` 时才惰性导入 fsb5。
 - `config.ini` 的 `[TYPES]` 控制提取的资源类型。`[UPDATE]` 计数器:全为 `0` 表示全量提取;否则按类别只提取最新 N 首——通过对 `info/difficulty.tsv` 列表在两个硬编码锚点曲 ID(`Doppelganger.LeaF`、`Poseidon.1112vsStar`)之间切片实现,游戏大更新后锚点可能需要人工更新。
 - `main.py` 已腐烂/无法运行(`from . import resource` 相对导入错误、`resource.run` 签名不符)。不要以它为范本修调用方;用 `resource.py` 命令行或 `gui.py`。
 - `resource.py` 只能作为 `__main__` 运行:`save()` 读取的全局量(`config`、`FSB5`)只在 `if __name__ == "__main__"` 块里赋值。
 - 大小写不一致:`resource.py` 写出的是小写目录(`illustrationLowRes/`、`illustration/`),但 `phira.py` 读的是 `IllustrationLowRes/`,`.gitignore` 里也是大写。Windows/macOS 上没事,Linux 上会崩。
 - `split.py`/`split.sh` 处理的是 `music/*.wav`,而流水线现在输出 `.ogg`——视为已过时。
 - `untitled.py` 看起来是 pyuic5 生成的,但里面有手写的槽函数(`extract_apk_file`、`checkboxstate`)——**不要**从 `.ui` 文件重新生成。
-- `typetree.json` 是 `gameInformation.py` 解析的 3 个 MonoBehaviour 脚本(各 8 个字段)的 Unity typetree 转储;它跟随游戏版本(参考 "fix: Extraction logic for 4.0.1" 这类提交),游戏数据结构变更时必须同步更新。
+- `typetree.json` 是 `gameInformation.py` 解析的 3 个 MonoBehaviour 脚本(各 8 个字段)的 Unity typetree 转储;它跟随游戏版本(参考 "fix: Extraction logic for 4.0.1" 这类提交),游戏数据结构变更时必须同步更新。已实测:用 4.x 的 typetree 解析 3.20.0 APK 会抛 `ValueError: Can't read ... bytes`(`read_typetree` 处),跨版本提取必须使用对应版本的 typetree。
+- GBK 代码页的控制台下,日志打印含特殊字符的曲名(`♪`、日文等)会触发 logging 的 `UnicodeEncodeError` 噪音(被 logging 吞掉、不中断流程);设 `PYTHONIOENCODING=utf-8` 可规避。
 - `gameInformation.py` 兼容两种 APK 布局:`assets/bin/Data/data.unity3d`,或旧版的 `globalgamemanagers.assets` + `level0`。
 - `resource.py` 对第九章谢幕曲(硬编码 id `WhatdoyouwantmorethanaHappyending...`)有独立分支,处理其四难度差分曲绘(`_EZ/_HD/_IN/_AT` 后缀);改资源命名/过滤逻辑时别漏掉这个特例。
 - 全量模式为每个资产新建 `Environment`,而增量模式(`[UPDATE]` 非零)所有选中资产共用一个 `Environment`——批量提取的内存行为不同。
