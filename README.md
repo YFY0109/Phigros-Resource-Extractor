@@ -60,7 +60,7 @@ uv run python src/tui.py --input
 
 版本号默认从 APK 文件名识别(如 `Phigros_4.0.1.apk` → `4.0.1`),也可以用 `--version` 指定。提取哪些类别可在 `config.json` 的 `types` 中配置(默认全部开启);`update` 可配置只提取各分类最新若干首。
 
-在已有其他版本产物的基础上提取新版本时,内容相同的文件会自动与旧版本建立**硬链接**以节省磁盘空间(判定方式:文件大小 + 头尾各 `sample_bytes` 字节);文件系统不支持硬链接时自动回退为普通写入。该功能可在 `config.json` 的 `dedupe` 中关闭(`enabled`)或调整采样大小(`sample_bytes`,默认 65536 字节)。
+在已有其他版本产物的基础上提取新版本时,内容相同的文件(包括 Phira 打包产物 `.pez`)会自动与旧版本建立**硬链接**以节省磁盘空间(判定方式:文件大小 + 头尾各 `sample_bytes` 字节);文件系统不支持硬链接时自动回退为普通写入。该功能可在 `config.json` 的 `dedupe` 中关闭(`enabled`)或调整采样大小(`sample_bytes`,默认 65536 字节)。
 
 游戏版本适配数据(typetree)存放于 `typetree/`:`default.json` 为当前游戏版本,历史版本按完整版本号命名(如 `3.20.0.json`);游戏更新后需重新生成,详见 `typetree/README.md`。WebUI 的监听地址与端口可在 `config.json` 的 `webui` 中配置(端口被占用时会自动更换)。
 

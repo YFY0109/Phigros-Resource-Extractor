@@ -10,13 +10,18 @@ import argparse
 import csv
 import os
 import shutil
-from zipfile import ZipFile, BadZipFile
+from io import BytesIO
+from zipfile import ZipFile, ZipInfo, BadZipFile
 
-from common import list_versions, resource_dir, version_dir
+from common import list_versions, load_config, resource_dir, version_dir
+from dedupe import DedupeStore, write_file
 from log import init_console_logger
 from progress import NULL_PROGRESS
 
 LEVELS = ("EZ", "HD", "IN", "AT")
+
+# zip 条目固定时间戳:保证内容相同的 pez 字节级可复现,从而参与跨版本硬链接去重
+FIXED_ZIP_TIME = (2000, 1, 1, 0, 0, 0)
 
 
 def parse_args():
@@ -70,13 +75,14 @@ def apply_difficulties(infos, difficulty_path, logger):
         raise SystemExit("错误:未找到 %s,请先运行 gameInformation.py" % difficulty_path)
 
 
-def build_pez(version, level, song_id, info, logger):
-    """为单个歌曲的单个难度生成 .pez 压缩包(按曲目分目录,与 charts 结构一致)。"""
+def build_pez_bytes(version, level, song_id, info, logger):
+    """在内存中构建单个难度的 .pez,返回 bytes。
+
+    所有 zip 条目使用固定时间戳,使内容相同的 pez 字节级可复现(便于跨版本去重)。
+    """
     level_index = LEVELS.index(level)
-    song_dir = os.path.join(version_dir(version), "phira", "%s.0" % song_id)
-    os.makedirs(song_dir, exist_ok=True)
-    pez_path = os.path.join(song_dir, "%s.pez" % level)
-    with ZipFile(pez_path, "x") as pez:
+    buffer = BytesIO()
+    with ZipFile(buffer, "w") as pez:
         info_txt_content = (
             "#\n"
             "Name: %s\n" % info["Name"] +
@@ -88,11 +94,13 @@ def build_pez(version, level, song_id, info, logger):
             "Illustrator: %s\n" % info["Illustrator"] +
             "Charter: %s" % info["Chater"][level_index]
         )
-        pez.writestr("info.txt", info_txt_content)
+        pez.writestr(ZipInfo("info.txt", date_time=FIXED_ZIP_TIME), info_txt_content)
 
         chart_path = os.path.join(resource_dir(version, "chart"), "%s.0" % song_id, "%s.json" % level)
         try:
-            pez.write(chart_path, "%s.json" % song_id)
+            with open(chart_path, "rb") as f:
+                chart_data = f.read()
+            pez.writestr(ZipInfo("%s.json" % song_id, date_time=FIXED_ZIP_TIME), chart_data)
         except FileNotFoundError:
             logger.warning("未找到 %s 的 %s 谱面文件 (%s)", song_id, level, chart_path)
 
@@ -100,16 +108,22 @@ def build_pez(version, level, song_id, info, logger):
         for picture in ("%s.png" % song_id, "%s_%s.png" % (song_id, level)):
             picture_path = os.path.join(picture_dir, picture)
             if os.path.exists(picture_path):
-                pez.write(picture_path, "%s.png" % song_id)
+                with open(picture_path, "rb") as f:
+                    picture_data = f.read()
+                pez.writestr(ZipInfo("%s.png" % song_id, date_time=FIXED_ZIP_TIME), picture_data)
                 break
         else:
             logger.warning("未找到 %s 的曲绘文件", song_id)
 
         music_path = os.path.join(resource_dir(version, "music"), "%s.ogg" % song_id)
         try:
-            pez.write(music_path, "%s.ogg" % song_id)
+            with open(music_path, "rb") as f:
+                music_data = f.read()
+            pez.writestr(ZipInfo("%s.ogg" % song_id, date_time=FIXED_ZIP_TIME), music_data)
         except FileNotFoundError:
             logger.warning("未找到 %s 的音乐文件 (%s)", song_id, music_path)
+
+    return buffer.getvalue()
 
 
 def run(version, logger, progress=None):
@@ -130,6 +144,11 @@ def run(version, logger, progress=None):
         logger.error("创建或删除目录时出错 - %s", e)
         raise SystemExit(1)
 
+    dedupe_config = load_config().get("dedupe", {})
+    store = None
+    if dedupe_config.get("enabled", True):
+        store = DedupeStore(version, int(dedupe_config.get("sample_bytes", 65536)), logger)
+
     created = 0
     for song_id, info in infos.items():
         progress.check_cancelled()
@@ -138,7 +157,14 @@ def run(version, logger, progress=None):
             for level_index in range(len(info.get("difficulty", []))):
                 level = LEVELS[level_index]
                 try:
-                    build_pez(version, level, song_id, info, logger)
+                    data = build_pez_bytes(version, level, song_id, info, logger)
+                    song_dir = os.path.join(phira_root, "%s.0" % song_id)
+                    os.makedirs(song_dir, exist_ok=True)
+                    pez_path = os.path.join(song_dir, "%s.pez" % level)
+                    if store is not None:
+                        store.write(pez_path, data)
+                    else:
+                        write_file(pez_path, data)
                     created += 1
                 except BadZipFile as e:
                     logger.error("创建 .pez 文件时出错 - %s", e)
@@ -149,6 +175,9 @@ def run(version, logger, progress=None):
         except Exception as e:
             logger.error("处理 ID %s 时发生意外错误 - %s", song_id, e)
         progress.advance(info.get("Name", song_id))
+    if store is not None:
+        store.flush()
+        store.report()
     progress.finish("共生成 %d 个 pez" % created)
     return created
 
