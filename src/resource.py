@@ -98,6 +98,21 @@ def save_music(writer, path, music: AudioClip):
     writer.put(path, fsb.rebuild_sample(fsb.samples[0]))
 
 
+def _submit(pool, logger, func, *args):
+    """提交后台任务,完成后记录异常(未检查的 Future 会静默丢失产物)。"""
+    future = pool.submit(func, *args)
+    future.add_done_callback(lambda f: _log_task_error(f, logger))
+    return future
+
+
+def _log_task_error(future, logger):
+    if future.cancelled():
+        return
+    error = future.exception()
+    if error is not None:
+        logger.error("后台任务失败: %s", error, exc_info=error)
+
+
 def save_asset(key, entry, writer, pool, config, version, logger):
     """按资源类型匹配 catalog 条目 key,并把资产写入对应输出目录。"""
     types = config["types"]
@@ -119,13 +134,13 @@ def save_asset(key, entry, writer, pool, config, version, logger):
         writer.put(os.path.join(resource_dir(version, "illustrationBlur"), "%s.png" % key), bytes_io)
     elif types["illustrationLowRes"] and key[-25:-3] == ".0/IllustrationLowRes.":
         key = key[:-25]
-        pool.submit(save_image, writer, os.path.join(resource_dir(version, "illustrationLowRes"), "%s.png" % key), obj.image)
+        _submit(pool, logger, save_image, writer, os.path.join(resource_dir(version, "illustrationLowRes"), "%s.png" % key), obj.image)
     elif types["illustration"] and key[-19:-3] == ".0/Illustration.":
         key = key[:-19]
-        pool.submit(save_image, writer, os.path.join(resource_dir(version, "illustration"), "%s.png" % key), obj.image)
+        _submit(pool, logger, save_image, writer, os.path.join(resource_dir(version, "illustration"), "%s.png" % key), obj.image)
     elif types["music"] and key[-12:] == ".0/music.wav":
         key = key[:-12]
-        pool.submit(save_music, writer, os.path.join(resource_dir(version, "music"), "%s.ogg" % key), obj)
+        _submit(pool, logger, save_music, writer, os.path.join(resource_dir(version, "music"), "%s.ogg" % key), obj)
     # 第九章谢幕曲的四难度差分曲绘
     elif key.startswith("%s.0/Illustration" % CHAPTER9_ENDING_CHART_ID):
         level_id = key[-7:-4]  # _EZ/_HD/_IN/_AT
@@ -135,9 +150,9 @@ def save_asset(key, entry, writer, pool, config, version, logger):
                 obj.image.save(bytes_io, "png")
                 writer.put(os.path.join(resource_dir(version, "illustrationBlur"), "%s%s.png" % (CHAPTER9_ENDING_CHART_ID, level_id)), bytes_io)
             elif types["illustrationLowRes"] and key[-28:-7] == ".0/IllustrationLowRes":
-                pool.submit(save_image, writer, os.path.join(resource_dir(version, "illustrationLowRes"), "%s%s.png" % (CHAPTER9_ENDING_CHART_ID, level_id)), obj.image)
+                _submit(pool, logger, save_image, writer, os.path.join(resource_dir(version, "illustrationLowRes"), "%s%s.png" % (CHAPTER9_ENDING_CHART_ID, level_id)), obj.image)
             elif types["illustration"] and key[-22:-7] == ".0/Illustration":
-                pool.submit(save_image, writer, os.path.join(resource_dir(version, "illustration"), "%s%s.png" % (CHAPTER9_ENDING_CHART_ID, level_id)), obj.image)
+                _submit(pool, logger, save_image, writer, os.path.join(resource_dir(version, "illustration"), "%s%s.png" % (CHAPTER9_ENDING_CHART_ID, level_id)), obj.image)
 
 
 def load_bundle(env, apk, key, entry, logger):
@@ -189,7 +204,7 @@ def parse_catalog(path, logger):
         elif key_type == 4:
             key_value = key[key_position]
         else:
-            raise BaseException(key_position, key_type)
+            raise ValueError("未知的 catalog 键类型 %s(位置 %s)" % (key_type, key_position))
         entry_value = None
         for i in range(reader.readInt()):
             entry_position = reader.readInt()
@@ -208,7 +223,7 @@ def parse_catalog(path, logger):
     for i, (key, value) in enumerate(table):
         if '_' in value:
             table[i][1] = value.split('_', 1)[1]
-        logger.info('{key}, {value}'.format(key=key, value=value))
+        logger.debug("%s, %s", key, value)
     return table
 
 
