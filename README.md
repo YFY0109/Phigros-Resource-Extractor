@@ -18,6 +18,13 @@
 | 解锁动画视频 | `outputs/<版本>/videos/` | WebM / MP4(来自游戏 VideoClip) |
 | Phira 自制谱 | `outputs/<版本>/phira/<曲目>/` | `<难度>.pez` |
 
+解锁动画视频(章节解锁 PV 等)有两类来源,都会被提取:
+
+- **Unity 数据文件**内的 `VideoClip`:视频流按 `m_ExternalResources` 的偏移/长度从 `.resource` 中切分(3.x 为 `sharedassets*.assets`,4.x 为 `data.unity3d`);
+- **Addressables 资产包** `assets/aa/Android/*.bundle`:如第九章的 `c9.video.*` 章节视频(4.0.0 起)。
+
+容器格式:3.x 与 4.0.0 为 WebM,4.0.1 起为 MP4;文件扩展名按视频内容自动识别,文件名取自游戏内资产名。
+
 ## 批量处理(input/)
 
 将待处理 APK 放入仓库根目录的 `input/`(文件名建议包含版本号,如 `Phigros_4.0.1.apk`),然后运行:
