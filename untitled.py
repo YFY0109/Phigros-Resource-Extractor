@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import configparser
 import os
+import subprocess
+import sys
 
 # Form implementation generated from reading ui file 'untitled.ui'
 #
@@ -92,15 +94,18 @@ class Ui_Form(object):
         )
         self.apkPathTextEdit.setText(fileName_choose)
 
+    def _run_script(self, script, *args):
+        """用当前解释器运行脚本(继承虚拟环境,且正确处理含空格的路径)。"""
+        subprocess.run([sys.executable, script, *args])
+
     def extract_apk_file(self):
         self.checkboxstate()
-        os.system(
-            "python gameInformation.py {}".format(self.apkPathTextEdit.toPlainText())
-        )
-        os.system("python resource.py {}".format(self.apkPathTextEdit.toPlainText()))
+        apk_path = self.apkPathTextEdit.toPlainText()
+        self._run_script("gameInformation.py", apk_path)
+        self._run_script("resource.py", apk_path)
 
     def build_pez_file(self):
-        os.system("python phira.py")
+        self._run_script("phira.py")
 
     def retranslateUi(self, Form):
         _translate = QtCore.QCoreApplication.translate
