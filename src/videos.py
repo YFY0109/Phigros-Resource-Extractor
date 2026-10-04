@@ -23,6 +23,15 @@ from progress import NULL_PROGRESS
 DATA_PREFIX = "assets/bin/Data/"
 
 
+def _video_extension(data):
+    """按数据头识别视频容器:WebM(EBML)或 MP4(ftyp)。"""
+    if data[:4] == b"\x1a\x45\xdf\xa3":
+        return ".webm"
+    if len(data) >= 8 and data[4:8] == b"ftyp":
+        return ".mp4"
+    return ".bin"
+
+
 def _read_data(apk, names, base):
     """读取 Data 文件内容(自动拼接 .splitN 拆分文件)。"""
     parts = [n for n in names if n == base or n.startswith(base + ".split")]
@@ -113,7 +122,7 @@ def run(apk_path, version, logger, progress=None):
                 logger.warning("视频数据读取失败 %s: %s", clip["name"], e)
                 continue
             safe_name = "".join(ch if (ch.isalnum() or ch in "._-") else "_" for ch in clip["name"])
-            path = os.path.join(output_dir, safe_name + ".webm")
+            path = os.path.join(output_dir, safe_name + _video_extension(data))
             if store is not None:
                 store.write(path, data)
             else:
