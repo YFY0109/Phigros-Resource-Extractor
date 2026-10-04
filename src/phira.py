@@ -14,6 +14,7 @@ from zipfile import ZipFile, BadZipFile
 
 from common import list_versions, resource_dir, version_dir
 from log import init_console_logger
+from progress import NULL_PROGRESS
 
 LEVELS = ("EZ", "HD", "IN", "AT")
 
@@ -111,10 +112,9 @@ def build_pez(version, level, song_id, info, logger):
             logger.warning("未找到 %s 的音乐文件 (%s)", song_id, music_path)
 
 
-def main():
-    args = parse_args()
-    version = choose_version(args.version)
-    logger = init_console_logger()
+def run(version, logger, progress=None):
+    """执行指定版本的完整打包流程,返回生成的 pez 数量。"""
+    progress = progress or NULL_PROGRESS
     logger.info("打包版本 %s" % version)
 
     infos = load_infos(os.path.join(version_dir(version), "info", "info.csv"), logger)
@@ -129,6 +129,8 @@ def main():
         logger.error("创建或删除目录时出错 - %s", e)
         raise SystemExit(1)
 
+    progress.start("打包 Phira 自制谱", total=len(infos))
+    created = 0
     for song_id, info in infos.items():
         try:
             logger.info("正在处理:%s,作曲者:%s", info["Name"], info["Composer"])
@@ -136,6 +138,7 @@ def main():
                 level = LEVELS[level_index]
                 try:
                     build_pez(version, level, song_id, info, logger)
+                    created += 1
                 except BadZipFile as e:
                     logger.error("创建 .pez 文件时出错 - %s", e)
                 except Exception as e:
@@ -144,6 +147,16 @@ def main():
             logger.error("ID %s 缺少必要的键 %s", song_id, e)
         except Exception as e:
             logger.error("处理 ID %s 时发生意外错误 - %s", song_id, e)
+        progress.advance(info.get("Name", song_id))
+    progress.finish("共生成 %d 个 pez" % created)
+    return created
+
+
+def main():
+    args = parse_args()
+    version = choose_version(args.version)
+    logger = init_console_logger()
+    run(version, logger)
 
 
 if __name__ == "__main__":

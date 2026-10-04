@@ -16,6 +16,7 @@ from UnityPy import Environment
 
 from common import detect_version, version_dir
 from log import init_console_logger
+from progress import NULL_PROGRESS
 
 # 版本专属 typetree 存放目录;未找到时回退到根目录的 typetree.json
 TYPETREE_DIR = "typetree"
@@ -46,7 +47,9 @@ def read_typetree(obj, typetree_data, script_name, read_monobehaviour=False):
         raise RuntimeError("解析 %s 失败,typetree.json 可能与游戏版本不匹配:%s" % (script_name, e))
 
 
-def run(path, version, logger):
+def run(path, version, logger, progress=None):
+    progress = progress or NULL_PROGRESS
+    progress.start("解析游戏信息")
     output_dir = os.path.join(version_dir(version), "info")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -62,6 +65,7 @@ def run(path, version, logger):
                 env.load_file(BytesIO(f.read()), name="assets/bin/Data/globalgamemanagers.assets")
             with apk.open("assets/bin/Data/level0") as f:
                 env.load_file(BytesIO(f.read()))
+    progress.advance("已加载 Unity 数据")
 
     game_information = None
     collections = None
@@ -110,6 +114,7 @@ def run(path, version, logger):
 
     logger.info(difficulty)
     logger.info(table)
+    progress.advance("已解析游戏数据")
 
     write_csv(os.path.join(output_dir, "difficulty.csv"), difficulty)
     write_csv(os.path.join(output_dir, "info.csv"), table)
@@ -157,6 +162,7 @@ def run(path, version, logger):
         for tip in tips.tips[0].tips:
             f.write(tip)
             f.write("\n")
+    progress.finish("完成")
 
 
 def parse_args():

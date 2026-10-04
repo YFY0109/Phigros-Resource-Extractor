@@ -24,6 +24,7 @@ from UnityPy.enums import ClassIDType
 from common import detect_version, load_config, resource_dir, version_dir
 from dedupe import DedupeStore, write_file
 from log import init_console_logger
+from progress import NULL_PROGRESS
 
 # 需要读取的 Unity 资产类型
 BUFFER_CLASSES = (ClassIDType.TextAsset, ClassIDType.Sprite, ClassIDType.AudioClip)
@@ -227,7 +228,8 @@ def select_songs(all_ids, update):
     return main + other + side
 
 
-def run(apk_path, version, config, logger):
+def run(apk_path, version, config, logger, progress=None):
+    progress = progress or NULL_PROGRESS
     types = config["types"]
 
     # 创建启用的资源输出目录;Android 上放置 .nomedia 防止媒体扫描
@@ -253,23 +255,28 @@ def run(apk_path, version, config, logger):
         with ThreadPoolExecutor(WORKER_THREADS) as pool:
             if update["main_story"] == 0 and update["other_song"] == 0 and update["side_story"] == 0:
                 # 全量提取
+                progress.start("提取资源(全量)", total=len(table))
                 with ZipFile(apk_path) as apk:
                     for key, entry in table:
                         process_bundle(key, entry, apk, pool, writer, config, version, logger)
+                        progress.advance(key)
             else:
                 # 增量提取:仅处理选中歌曲的资产包
                 difficulty_path = os.path.join(version_dir(version), "info", "difficulty.csv")
                 song_ids = select_songs(load_song_ids(difficulty_path), update)
                 logger.info(str(song_ids))
+                progress.start("提取资源(增量)", total=None)
                 env = Environment()
                 with ZipFile(apk_path) as apk:
                     for key, entry in table:
                         if key[:7] == "avatar.":
-                            load_bundle(env, apk, key, entry, logger)
+                            if load_bundle(env, apk, key, entry, logger):
+                                progress.advance(key)
                             continue
                         for song_id in song_ids:
                             if key.startswith("%s.0/" % song_id):
-                                load_bundle(env, apk, key, entry, logger)
+                                if load_bundle(env, apk, key, entry, logger):
+                                    progress.advance(key)
                                 break
                 for i_key, i_entry in env.files.items():
                     try:
@@ -281,6 +288,7 @@ def run(apk_path, version, config, logger):
         if store is not None:
             store.flush()
             store.report()
+        progress.finish()
     logger.info("%f秒" % round(time.time() - started, 4))
 
 
