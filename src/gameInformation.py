@@ -6,6 +6,7 @@
 产物输出到 outputs/<版本>/info/。
 """
 import argparse
+import csv
 import json
 import os
 import zipfile
@@ -29,6 +30,12 @@ def find_typetree(version, logger):
         return versioned
     logger.info("未找到 %s 的专属 typetree,使用默认 %s" % (version, DEFAULT_TYPETREE))
     return DEFAULT_TYPETREE
+
+
+def write_csv(path, rows):
+    """写 CSV(UTF-8 带 BOM,便于 Excel 直接打开;逗号/引号由 csv 模块自动转义)。"""
+    with open(path, "w", encoding="utf-8-sig", newline="") as f:
+        csv.writer(f).writerows(rows)
 
 
 def read_typetree(obj, typetree_data, script_name, read_monobehaviour=False):
@@ -104,15 +111,8 @@ def run(path, version, logger):
     logger.info(difficulty)
     logger.info(table)
 
-    with open(os.path.join(output_dir, "difficulty.tsv"), "w", encoding="utf8") as f:
-        for item in difficulty:
-            f.write("\t".join(map(str, item)))
-            f.write("\n")
-
-    with open(os.path.join(output_dir, "info.tsv"), "w", encoding="utf8") as f:
-        for item in table:
-            f.write("\t".join(item))
-            f.write("\n")
+    write_csv(os.path.join(output_dir, "difficulty.csv"), difficulty)
+    write_csv(os.path.join(output_dir, "info.csv"), table)
 
     single = []
     illustration = []
@@ -139,16 +139,19 @@ def run(path, version, logger):
         else:
             collection_titles[item.key] = [item.multiLanguageTitle.chinese, item.subIndex]
 
-    with open(os.path.join(output_dir, "collection.tsv"), "w", encoding="utf8") as f:
-        for key, value in collection_titles.items():
-            f.write("%s\t%s\t%s\n" % (key, value[0], value[1]))
+    write_csv(
+        os.path.join(output_dir, "collection.csv"),
+        ([key, value[0], value[1]] for key, value in collection_titles.items()),
+    )
 
+    write_csv(
+        os.path.join(output_dir, "tmp.csv"),
+        ([item.name, item.addressableKey[7:]] for item in collections.avatars),
+    )
     with open(os.path.join(output_dir, "avatar.txt"), "w", encoding="utf8") as avatar:
-        with open(os.path.join(output_dir, "tmp.tsv"), "w", encoding="utf8") as tmp:
-            for item in collections.avatars:
-                avatar.write(item.name)
-                avatar.write("\n")
-                tmp.write("%s\t%s\n" % (item.name, item.addressableKey[7:]))
+        for item in collections.avatars:
+            avatar.write(item.name)
+            avatar.write("\n")
 
     with open(os.path.join(output_dir, "tips.txt"), "w", encoding="utf8") as f:
         for tip in tips.tips[0].tips:

@@ -7,6 +7,7 @@
 输出:outputs/<版本>/phira/<EZ|HD|IN|AT>/*.pez
 """
 import argparse
+import csv
 import os
 import shutil
 from zipfile import ZipFile, BadZipFile
@@ -35,19 +36,18 @@ def choose_version(override=None):
 
 
 def load_infos(info_path, logger):
-    """读取 info.tsv,返回 {歌曲ID: {Name, Composer, Illustrator, Chater}}。"""
+    """读取 info.csv,返回 {歌曲ID: {Name, Composer, Illustrator, Chater}}。"""
     infos = {}
     try:
-        with open(info_path, encoding="utf8") as f:
-            for line in f:
-                if not line.strip():
+        with open(info_path, encoding="utf-8-sig", newline="") as f:
+            for row in csv.reader(f):
+                if not row:
                     continue
-                parts = line.rstrip("\n").split("\t")
-                infos[parts[0]] = {
-                    "Name": parts[1],
-                    "Composer": parts[2],
-                    "Illustrator": parts[3],
-                    "Chater": parts[4:],
+                infos[row[0]] = {
+                    "Name": row[1],
+                    "Composer": row[2],
+                    "Illustrator": row[3],
+                    "Chater": row[4:],
                 }
     except FileNotFoundError:
         raise SystemExit("错误:未找到 %s,请先运行 gameInformation.py" % info_path)
@@ -55,17 +55,16 @@ def load_infos(info_path, logger):
 
 
 def apply_difficulties(infos, difficulty_path, logger):
-    """读取 difficulty.tsv,为每首歌补充难度列表。"""
+    """读取 difficulty.csv,为每首歌补充难度列表。"""
     try:
-        with open(difficulty_path, encoding="utf8") as f:
-            for line in f:
-                if not line.strip():
+        with open(difficulty_path, encoding="utf-8-sig", newline="") as f:
+            for row in csv.reader(f):
+                if not row:
                     continue
-                parts = line.rstrip("\n").split("\t")
-                if parts[0] in infos:
-                    infos[parts[0]]["difficulty"] = parts[1:]
+                if row[0] in infos:
+                    infos[row[0]]["difficulty"] = row[1:]
                 else:
-                    logger.warning("difficulty.tsv 中的 ID %s 在 info.tsv 中未找到", parts[0])
+                    logger.warning("difficulty.csv 中的 ID %s 在 info.csv 中未找到", row[0])
     except FileNotFoundError:
         raise SystemExit("错误:未找到 %s,请先运行 gameInformation.py" % difficulty_path)
 
@@ -118,8 +117,8 @@ def main():
     logger = init_console_logger()
     logger.info("打包版本 %s" % version)
 
-    infos = load_infos(os.path.join(version_dir(version), "info", "info.tsv"), logger)
-    apply_difficulties(infos, os.path.join(version_dir(version), "info", "difficulty.tsv"), logger)
+    infos = load_infos(os.path.join(version_dir(version), "info", "info.csv"), logger)
+    apply_difficulties(infos, os.path.join(version_dir(version), "info", "difficulty.csv"), logger)
 
     # 重建打包输出目录(按曲目分目录,与 charts 结构一致)
     phira_root = os.path.join(version_dir(version), "phira")

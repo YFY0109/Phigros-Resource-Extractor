@@ -7,6 +7,7 @@
 """
 import argparse
 import base64
+import csv
 import json
 import os
 import threading
@@ -211,9 +212,9 @@ def parse_catalog(path, logger):
 
 
 def load_song_ids(difficulty_path):
-    """读取 difficulty.tsv 中的歌曲 ID 列表(文件按游戏内曲目顺序排列)。"""
-    with open(difficulty_path, encoding="utf8") as f:
-        return [line.split("\t", 2)[0] for line in f if line.strip()]
+    """读取 difficulty.csv 中的歌曲 ID 列表(文件按游戏内曲目顺序排列)。"""
+    with open(difficulty_path, encoding="utf-8-sig", newline="") as f:
+        return [row[0] for row in csv.reader(f) if row]
 
 
 def select_songs(all_ids, update):
@@ -257,7 +258,7 @@ def run(apk_path, version, config, logger):
                         process_bundle(key, entry, apk, pool, writer, config, version, logger)
             else:
                 # 增量提取:仅处理选中歌曲的资产包
-                difficulty_path = os.path.join(version_dir(version), "info", "difficulty.tsv")
+                difficulty_path = os.path.join(version_dir(version), "info", "difficulty.csv")
                 song_ids = select_songs(load_song_ids(difficulty_path), update)
                 logger.info(str(song_ids))
                 env = Environment()
