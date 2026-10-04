@@ -4,6 +4,7 @@
     python src/tui.py                                        # 交互菜单
     python src/tui.py --apk <路径> --all                     # 直跑:完整流程
     python src/tui.py --apk <路径> --info --resource         # 直跑:指定步骤
+    python src/tui.py --apk <路径> --video                   # 直跑:仅提取解锁动画视频
     python src/tui.py --phira --version 4.0.1                # 仅打包(无需 APK)
 
 APK 必须由用户显式提供(文件名需包含版本号,如 Phigros_4.0.1.apk,或用 --version 指定)。
