@@ -153,8 +153,8 @@ def run(path, version, logger, progress=None):
     with open(os.path.join(output_dir, "illustration.txt"), "w", encoding="utf8") as f:
         for item in illustration:
             f.write("%s\n" % item)
-    logger.info(single)
-    logger.info(illustration)
+    logger.debug(single)
+    logger.debug(illustration)
 
     collection_titles = {}
     for item in collections.collectionItems:
