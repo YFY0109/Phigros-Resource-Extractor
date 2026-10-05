@@ -190,8 +190,34 @@ def _find_video(videos_dir, base):
     return None
 
 
+def _video_size(path):
+    """用 ffprobe 读取视频流尺寸 (宽, 高);失败返回 None。"""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=width,height", "-of", "csv=s=x:p=0", path],
+            capture_output=True, text=True)
+        width, height = result.stdout.strip().split("x")
+        return (int(width), int(height))
+    except Exception:
+        return None
+
+
 def _concat_videos(paths, logger):
-    """用 ffmpeg 无损拼接视频片段;失败返回 None。"""
+    """用 ffmpeg 拼接视频片段;失败返回 None。
+
+    各片段分辨率一致时用 `-c copy` 无损拼接;不一致时以最大片段尺寸为画布,
+    其余片段按比例缩放后居中补黑边(#000)再统一重编码(如 ds_unlock* 的
+    16:9 开场 + 4:3 难度片段)。
+    """
+    sizes = [_video_size(path) for path in paths]
+    if all(size and size == sizes[0] for size in sizes):
+        return _concat_videos_copy(paths, logger)
+    return _concat_videos_reencode(paths, sizes, logger)
+
+
+def _concat_videos_copy(paths, logger):
+    """按顺序无损拼接(要求分辨率一致):ffmpeg concat demuxer + -c copy。"""
     temp_dir = tempfile.mkdtemp(prefix="phigros_concat_")
     try:
         list_path = os.path.join(temp_dir, "concat.txt")
@@ -202,14 +228,97 @@ def _concat_videos(paths, logger):
         out_path = os.path.join(temp_dir, "concat%s" % os.path.splitext(paths[0])[1])
         command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
                    "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", out_path]
-        result = subprocess.run(command, capture_output=True)
-        if result.returncode != 0:
-            logger.error("ffmpeg 拼接失败:%s", result.stderr.decode("utf8", "replace").strip()[:300])
-            return None
-        with open(out_path, "rb") as f:
-            return f.read()
+        return _run_ffmpeg(command, out_path, logger)
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _has_audio(path):
+    """ffprobe 判断是否存在音频流。"""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "a",
+             "-show_entries", "stream=index", "-of", "csv=p=0", path],
+            capture_output=True, text=True)
+        return bool(result.stdout.strip())
+    except Exception:
+        return True  # 探测失败按有音频处理,交由 ffmpeg 报错
+
+
+def _media_duration(path):
+    """ffprobe 读取媒体时长(秒);失败返回 None。"""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", path],
+            capture_output=True, text=True)
+        return float(result.stdout.strip())
+    except Exception:
+        return None
+
+
+def _concat_videos_reencode(paths, sizes, logger):
+    """以最大片段尺寸为画布,其余片段缩放后居中补黑边,统一重编码拼接。
+
+    没有音频流的片段(如 ds_unlockDifficulties)会生成等长静音后一并拼接。
+    """
+    known = [size for size in sizes if size]
+    if not known:
+        logger.error("无法读取视频片段分辨率,拼接失败:%s",
+                     "、".join(os.path.basename(path) for path in paths))
+        return None
+    canvas = max(known, key=lambda size: size[0] * size[1])
+    temp_dir = tempfile.mkdtemp(prefix="phigros_concat_")
+    try:
+        out_path = os.path.join(temp_dir, "concat%s" % os.path.splitext(paths[0])[1])
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+        for path in paths:
+            command += ["-i", path]
+        audio_inputs = []
+        next_index = len(paths)
+        for position, path in enumerate(paths):
+            if _has_audio(path):
+                audio_inputs.append(position)
+                continue
+            duration = _media_duration(path)
+            if duration is None:
+                logger.error("无法读取视频时长,拼接失败:%s", os.path.basename(path))
+                return None
+            command += ["-f", "lavfi", "-t", "%.3f" % duration,
+                        "-i", "anullsrc=r=48000:cl=stereo"]
+            audio_inputs.append(next_index)
+            next_index += 1
+        filters = []
+        for index in range(len(paths)):
+            filters.append(
+                "[%d:v]scale=%d:%d:force_original_aspect_ratio=decrease,"
+                "pad=%d:%d:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p[v%d]" % (
+                    index, canvas[0], canvas[1], canvas[0], canvas[1], index))
+            filters.append(
+                "[%d:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a%d]" % (
+                    audio_inputs[index], index))
+        concat_inputs = "".join("[v%d][a%d]" % (index, index) for index in range(len(paths)))
+        filter_complex = ";".join(filters) + ";" + concat_inputs + "concat=n=%d:v=1:a=1[v][a]" % len(paths)
+        command += ["-filter_complex", filter_complex, "-map", "[v]", "-map", "[a]"]
+        if os.path.splitext(out_path)[1] == ".webm":
+            command += ["-c:v", "libvpx-vp9", "-crf", "24", "-b:v", "0", "-c:a", "libopus"]
+        else:
+            command += ["-c:v", "libx264", "-crf", "18", "-preset", "medium",
+                        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"]
+        command += [out_path]
+        return _run_ffmpeg(command, out_path, logger)
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _run_ffmpeg(command, out_path, logger):
+    """执行 ffmpeg 命令并读回输出文件;失败记录日志并返回 None。"""
+    result = subprocess.run(command, capture_output=True)
+    if result.returncode != 0:
+        logger.error("ffmpeg 拼接失败:%s", result.stderr.decode("utf8", "replace").strip()[:300])
+        return None
+    with open(out_path, "rb") as f:
+        return f.read()
 
 
 def _build_unlock_video(song_id, level, videos_dir, cache, logger):
@@ -363,8 +472,8 @@ def run(version, logger, progress=None):
     if generate_video and info_format != "yml":
         logger.warning("info.txt 格式不支持 unlockVideo 字段,已跳过带视频的谱面(phira.info_format 设为 yml 可生成)")
         generate_video = False
-    if generate_video and shutil.which("ffmpeg") is None:
-        logger.warning("未找到 ffmpeg,已跳过全部带解锁视频的谱面;请安装 ffmpeg 后重试:https://ffmpeg.org/download.html")
+    if generate_video and not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
+        logger.warning("未找到 ffmpeg/ffprobe,已跳过全部带解锁视频的谱面;请安装 ffmpeg 后重试:https://ffmpeg.org/download.html")
         generate_video = False
 
     infos = load_infos(os.path.join(version_dir(version), "info", "info.csv"), logger)

@@ -234,3 +234,22 @@ def test_build_unlock_video_missing_file(tmp_path):
     cache = {}
     assert phira._build_unlock_video("Spasmodic.x", "AT", str(tmp_path), cache, _logger()) is None
     assert cache  # 失败结果也缓存,避免重复告警
+
+
+def test_concat_videos_dispatches_by_resolution(monkeypatch):
+    calls = []
+    monkeypatch.setattr(phira, "_video_size",
+                        lambda path: {"a": (1440, 1080), "b": (1920, 1080)}[path])
+    monkeypatch.setattr(phira, "_concat_videos_copy", lambda paths, logger: calls.append("copy") or b"COPY")
+    monkeypatch.setattr(phira, "_concat_videos_reencode",
+                        lambda paths, sizes, logger: calls.append("reencode") or b"RE")
+    assert phira._concat_videos(["a", "b"], _logger()) == b"RE"
+    assert calls == ["reencode"]
+
+
+def test_concat_videos_uniform_uses_copy(monkeypatch):
+    monkeypatch.setattr(phira, "_video_size", lambda path: (1920, 1080))
+    monkeypatch.setattr(phira, "_concat_videos_copy", lambda paths, logger: b"COPY")
+    monkeypatch.setattr(phira, "_concat_videos_reencode",
+                        lambda paths, sizes, logger: (_ for _ in ()).throw(AssertionError("不应重编码")))
+    assert phira._concat_videos(["a", "b"], _logger()) == b"COPY"
