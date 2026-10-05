@@ -39,6 +39,24 @@ uv run python src/tui.py --input
 - 计算完整 SHA-256,已处理过的 APK(见 `outputs/processed.json` 台账)不会重复处理;
 - 对每个新 APK 执行完整流程(信息 → 资源 → 解锁动画视频 → Phira 打包)。
 
+## 运行环境
+
+跨平台(Windows / Linux / macOS),依赖统一由 [uv](https://docs.astral.sh/uv/) 管理。
+
+音乐提取(`music`)会通过 `fsb5` 调用本地库 `libogg` 与 `libvorbis`(需包含
+`libvorbisenc`);不启用音乐时无需这些库。缺失时会在该步骤给出包含安装命令的错误提示:
+
+| 平台 | 获取方式 |
+| --- | --- |
+| Windows | 仓库根目录已附带 `libogg.dll`、`libvorbis.dll`,另需安装 MSVCR120.dll(VC++ 2013 运行库) |
+| Debian/Ubuntu | `sudo apt install libogg0 libvorbis0a libvorbisenc2` |
+| Fedora | `sudo dnf install libogg libvorbis` |
+| Arch | `sudo pacman -S libogg libvorbis` |
+| macOS | `brew install libogg libvorbis` |
+
+也可把对应平台的动态库文件(`libogg.so*`/`libvorbis.so*` 或 `libogg.dll`/`libvorbis.dll`)
+放到仓库根目录,程序会优先使用系统库,找不到时再从当前工作目录与仓库根目录加载。
+
 ## 使用方法
 
 以下命令需在仓库根目录执行;源码位于 `src/`。
