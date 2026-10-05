@@ -9,6 +9,10 @@
 SP 谱面(如 4.0.1 的 Message)不登记在信息表中,以谱面文件 charts/<曲目>.0/SP.json
 是否存在判断;难度标识固定为 `SP Lv.?`(定数视为 0.0),谱师等未知信息用 UK 代替。
 Legacy 旧谱(如 Aleph-0、ESM)取 difficulty.csv 中对应槽位的实际定数,标识为 `Legacy Lv.定数`。
+
+谱面信息文件默认写 `info.yml`(Phira 官方格式,difficulty 为独立定数字段);
+可用 config.json 的 `phira.info_format` 切换为 RPE 风格的 `info.txt`——注意 info.txt
+没有定数字段,Phira 只会截取 `level` 字符串末尾的连续数字(如 `AT Lv.17.9` 会读成 9.0)。
 """
 import argparse
 import csv
@@ -80,34 +84,69 @@ def apply_difficulties(infos, difficulty_path, logger):
         raise SystemExit("错误:未找到 %s,请先运行 gameInformation.py" % difficulty_path)
 
 
-def build_pez_bytes(version, level, song_id, info, logger, level_index=None):
+def _yaml_quote(value):
+    """把字符串转为安全的 YAML 单引号标量(单引号写两遍转义)。"""
+    return "'%s'" % str(value).replace("'", "''")
+
+
+def build_pez_bytes(version, level, song_id, info, logger, level_index=None, info_format="yml"):
     """在内存中构建单个难度的 .pez,返回 bytes。
 
     所有 zip 条目使用固定时间戳,使内容相同的 pez 字节级可复现(便于跨版本去重)。
     level_index=None 表示 SP 等未登记进信息表的难度:难度标识用 "SP Lv.?"
     (定数视为 0.0);谱师等未知信息用 UK 代替。
+    info_format="yml"(默认)写 Phira 官方 info.yml(含独立 difficulty 定数);
+    "txt" 写 RPE 风格的 info.txt(info.txt 无定数字段,Phira 只能从 level 推断,小数会失真)。
     """
     if level_index is None:
+        difficulty_text = "0.0"
         level_text = "%s Lv.?" % level
         charter = "UK"
     else:
-        level_text = "%s Lv.%s" % (level, info["difficulty"][level_index])
+        difficulty_text = str(info["difficulty"][level_index])
+        level_text = "%s Lv.%s" % (level, difficulty_text)
         charters = info.get("Chater") or []
         charter = (charters[level_index] if level_index < len(charters) else "") or "UK"
+    name = info["Name"] or "UK"
+    composer = info["Composer"] or "UK"
+    illustrator = info["Illustrator"] or "UK"
     buffer = BytesIO()
     with ZipFile(buffer, "w") as pez:
-        info_txt_content = (
-            "#\n"
-            "Name: %s\n" % (info["Name"] or "UK") +
-            "Song: %s.ogg\n" % song_id +
-            "Picture: %s.png\n" % song_id +
-            "Chart: %s.json\n" % song_id +
-            "Level: %s\n" % level_text +
-            "Composer: %s\n" % (info["Composer"] or "UK") +
-            "Illustrator: %s\n" % (info["Illustrator"] or "UK") +
-            "Charter: %s" % charter
-        )
-        pez.writestr(ZipInfo("info.txt", date_time=FIXED_ZIP_TIME), info_txt_content)
+        if info_format == "txt":
+            info_content = (
+                "#\n"
+                "Name: %s\n" % name +
+                "Song: %s.ogg\n" % song_id +
+                "Picture: %s.png\n" % song_id +
+                "Chart: %s.json\n" % song_id +
+                "Level: %s\n" % level_text +
+                "Composer: %s\n" % composer +
+                "Illustrator: %s\n" % illustrator +
+                "Charter: %s" % charter
+            )
+            pez.writestr(ZipInfo("info.txt", date_time=FIXED_ZIP_TIME), info_content)
+        else:
+            info_content = (
+                "name: %s\n" % _yaml_quote(name) +
+                "difficulty: %s\n" % difficulty_text +
+                "level: %s\n" % _yaml_quote(level_text) +
+                "charter: %s\n" % _yaml_quote(charter) +
+                "composer: %s\n" % _yaml_quote(composer) +
+                "illustrator: %s\n" % _yaml_quote(illustrator) +
+                "chart: %s\n" % _yaml_quote("%s.json" % song_id) +
+                "music: %s\n" % _yaml_quote("%s.ogg" % song_id) +
+                "illustration: %s\n" % _yaml_quote("%s.png" % song_id) +
+                # 其余必需字段先按 Phira 默认值填全,便于其它工具读取完整信息
+                "previewStart: 0.0\n" +
+                "aspectRatio: 1.7777778\n" +
+                "backgroundDim: 0.6\n" +
+                "lineLength: 6.0\n" +
+                "offset: 0.0\n" +
+                "tags: []\n" +
+                "intro: ''\n" +
+                "holdPartialCover: false\n"
+            )
+            pez.writestr(ZipInfo("info.yml", date_time=FIXED_ZIP_TIME), info_content)
 
         chart_path = os.path.join(resource_dir(version, "chart"), "%s.0" % song_id, "%s.json" % level)
         try:
@@ -152,6 +191,14 @@ def run(version, logger, progress=None):
     progress = progress or NULL_PROGRESS
     logger.info("打包版本 %s" % version)
 
+    config = load_config()
+    info_format = str(config.get("phira", {}).get("info_format", "yml")).strip().lower()
+    if info_format == "yaml":
+        info_format = "yml"
+    if info_format not in ("yml", "txt"):
+        logger.warning("config.json 中 phira.info_format=%r 无法识别,按 yml 处理", info_format)
+        info_format = "yml"
+
     infos = load_infos(os.path.join(version_dir(version), "info", "info.csv"), logger)
     apply_difficulties(infos, os.path.join(version_dir(version), "info", "difficulty.csv"), logger)
 
@@ -160,12 +207,14 @@ def run(version, logger, progress=None):
     phira_root = os.path.join(version_dir(version), "phira")
     try:
         shutil.rmtree(phira_root, True)
+        if os.path.isdir(phira_root):
+            raise OSError("输出目录无法完整清理,文件可能正被其它程序占用(关闭后重试)")
         os.makedirs(phira_root, exist_ok=True)
     except Exception as e:
         logger.error("创建或删除目录时出错 - %s", e)
         raise SystemExit(1)
 
-    dedupe_config = load_config().get("dedupe", {})
+    dedupe_config = config.get("dedupe", {})
     store = None
     if dedupe_config.get("enabled", True):
         store = DedupeStore(version, int(dedupe_config.get("sample_bytes", 65536)), logger)
@@ -180,7 +229,7 @@ def run(version, logger, progress=None):
                     continue  # 空槽位(如无 AT/Legacy)
                 level = LEVELS[level_index]
                 try:
-                    data = build_pez_bytes(version, level, song_id, info, logger, level_index)
+                    data = build_pez_bytes(version, level, song_id, info, logger, level_index, info_format)
                     song_dir = os.path.join(phira_root, "%s.0" % song_id)
                     os.makedirs(song_dir, exist_ok=True)
                     _write_pez(store, os.path.join(song_dir, "%s.pez" % level), data)
@@ -193,7 +242,7 @@ def run(version, logger, progress=None):
             sp_chart = os.path.join(resource_dir(version, "chart"), "%s.0" % song_id, "SP.json")
             if os.path.isfile(sp_chart):
                 try:
-                    data = build_pez_bytes(version, "SP", song_id, info, logger)
+                    data = build_pez_bytes(version, "SP", song_id, info, logger, info_format=info_format)
                     song_dir = os.path.join(phira_root, "%s.0" % song_id)
                     os.makedirs(song_dir, exist_ok=True)
                     _write_pez(store, os.path.join(song_dir, "SP.pez"), data)

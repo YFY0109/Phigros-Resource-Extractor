@@ -1,4 +1,4 @@
-"""phira.py 的单元测试:SP 谱面打包与未知信息回退。"""
+"""phira.py 的单元测试:谱面信息格式(yml/txt)、SP/Legacy 打包与未知信息回退。"""
 import csv
 import logging
 import os
@@ -36,10 +36,15 @@ def test_build_pez_sp_uses_placeholder_fields(tmp_path, monkeypatch):
 
     data = phira.build_pez_bytes(version, "SP", song_id, info, _logger())
     with ZipFile(BytesIO(data)) as pez:
-        info_txt = pez.read("info.txt").decode("utf8")
+        names = set(pez.namelist())
+        info_yml = pez.read("info.yml").decode("utf8")
         chart = pez.read("%s.json" % song_id).decode("utf8")
-    assert "Level: SP Lv.?\n" in info_txt
-    assert "Charter: UK" in info_txt
+    assert "info.yml" in names and "info.txt" not in names
+    for line in ("difficulty: 0.0", "level: 'SP Lv.?'", "charter: 'UK'",
+                 "previewStart: 0.0", "aspectRatio: 1.7777778", "backgroundDim: 0.6",
+                 "lineLength: 6.0", "offset: 0.0", "tags: []", "intro: ''",
+                 "holdPartialCover: false"):
+        assert line in info_yml
     assert chart == '{"lv": "SP"}'
 
 
@@ -66,9 +71,10 @@ def test_run_packages_legacy_pez(tmp_path, monkeypatch):
     legacy_pez = os.path.join(song_dir, "Legacy.pez")
     assert os.path.isfile(legacy_pez)
     with ZipFile(legacy_pez) as pez:
-        info_txt = pez.read("info.txt").decode("utf8")
-    assert "Level: Legacy Lv.15.6" in info_txt
-    assert "Charter: 旧谱师" in info_txt
+        info_yml = pez.read("info.yml").decode("utf8")
+    assert "difficulty: 15.6" in info_yml
+    assert "level: 'Legacy Lv.15.6'" in info_yml
+    assert "charter: '旧谱师'" in info_yml
 
 
 def test_run_packages_sp_pez(tmp_path, monkeypatch):
@@ -92,7 +98,49 @@ def test_run_packages_sp_pez(tmp_path, monkeypatch):
     assert os.path.isfile(sp_pez)
     with ZipFile(sp_pez) as pez:
         names = set(pez.namelist())
-        info_txt = pez.read("info.txt").decode("utf8")
-    assert "Level: SP Lv.?" in info_txt
-    assert "Charter: UK" in info_txt
+        info_yml = pez.read("info.yml").decode("utf8")
+    assert "difficulty: 0.0" in info_yml
+    assert "level: 'SP Lv.?'" in info_yml
     assert "%s.json" % song_id in names
+
+
+def test_build_pez_txt_format(tmp_path, monkeypatch):
+    """info_format="txt":仍可输出 RPE 兼容格式(无 difficulty 字段)。"""
+    monkeypatch.setattr(common, "OUTPUT_ROOT", str(tmp_path / "outputs"))
+    version = "9.9.9"
+    song_id = "Song.Txt"
+    chart_dir = os.path.join(common.resource_dir(version, "chart"), "%s.0" % song_id)
+    os.makedirs(chart_dir)
+    with open(os.path.join(chart_dir, "EZ.json"), "w", encoding="utf8") as f:
+        f.write('{"lv": "EZ"}')
+    info = {"Name": "Song", "Composer": "Composer", "Illustrator": "Illustrator",
+            "Chater": ["Charter"], "difficulty": ["3.0"]}
+
+    data = phira.build_pez_bytes(version, "EZ", song_id, info, _logger(), 0, info_format="txt")
+    with ZipFile(BytesIO(data)) as pez:
+        names = set(pez.namelist())
+        info_txt = pez.read("info.txt").decode("utf8")
+    assert "info.txt" in names and "info.yml" not in names
+    assert "Level: EZ Lv.3.0" in info_txt
+    assert "Charter: Charter" in info_txt
+
+
+def test_build_pez_yaml_escapes_special_values(tmp_path, monkeypatch):
+    """info.yml 字符串一律单引号包裹,值内的单引号写两遍转义。"""
+    monkeypatch.setattr(common, "OUTPUT_ROOT", str(tmp_path / "outputs"))
+    version = "9.9.9"
+    song_id = "Song.Yaml"
+    chart_dir = os.path.join(common.resource_dir(version, "chart"), "%s.0" % song_id)
+    os.makedirs(chart_dir)
+    with open(os.path.join(chart_dir, "HD.json"), "w", encoding="utf8") as f:
+        f.write('{"lv": "HD"}')
+    info = {"Name": "It's: a test", "Composer": "C", "Illustrator": "I",
+            "Chater": ["O'Brien"], "difficulty": ["7.5"]}
+
+    data = phira.build_pez_bytes(version, "HD", song_id, info, _logger(), 0)
+    with ZipFile(BytesIO(data)) as pez:
+        info_yml = pez.read("info.yml").decode("utf8")
+    assert "name: 'It''s: a test'" in info_yml
+    assert "charter: 'O''Brien'" in info_yml
+    assert "difficulty: 7.5" in info_yml
+    assert "level: 'HD Lv.7.5'" in info_yml

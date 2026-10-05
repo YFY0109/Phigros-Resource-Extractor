@@ -49,6 +49,9 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "sample_bytes": 65536,
     },
+    "phira": {
+        "info_format": "yml",
+    },
     "webui": {
         "host": "127.0.0.1",
         "port": 8000,
