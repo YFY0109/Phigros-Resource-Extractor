@@ -17,7 +17,16 @@
     "sample_bytes": 65536
   },
   "phira": {
-    "info_format": "yml"
+    "info_format": "yml",
+    "generate_video": true,
+    "preview_start": 0.0,
+    "aspect_ratio": 1.7777778,
+    "background_dim": 0.6,
+    "line_length": 6.0,
+    "offset": 0.0,
+    "tags": [],
+    "intro": "",
+    "hold_partial_cover": false
   },
   "webui": {
     "host": "127.0.0.1",

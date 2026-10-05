@@ -58,6 +58,10 @@ uv run python src/tui.py --input
 也可把对应平台的动态库文件(`libogg.so*`/`libvorbis.so*` 或 `libogg.dll`/`libvorbis.dll`)
 放到仓库根目录,程序会优先使用系统库,找不到时再从当前工作目录与仓库根目录加载。
 
+打包**带解锁视频**的 Phira 谱面(`phira.generate_video`,默认开启)需要
+[ffmpeg](https://ffmpeg.org/download.html) 用于拼接多段解锁视频;未安装时会在打包时提示,
+并自动跳过这部分(仍会生成不带视频的版本)。
+
 ## 使用方法
 
 以下命令需在仓库根目录执行;源码位于 `src/`。
@@ -86,7 +90,7 @@ uv run python src/tui.py --input
    uv run python src/phira.py                                # 打包 Phira 自制谱
    ```
 
-版本号默认从 APK 内 `AndroidManifest.xml` 的 `versionName` 读取(不依赖文件名),读取失败时才回退文件名中的 `x.y.z`;也可以用 `--version` 直接指定。提取哪些类别可在 `config.json` 的 `types` 中配置(默认全部开启);`update` 可配置只提取各分类最新若干首。Phira 打包的信息文件格式由 `config.json` 的 `phira.info_format` 控制:`yml`(默认,官方格式,显式记录定数)或 `txt`(RPE 兼容格式,Phira 只能从难度串推断定数,小数会失真)。
+版本号默认从 APK 内 `AndroidManifest.xml` 的 `versionName` 读取(不依赖文件名),读取失败时才回退文件名中的 `x.y.z`;也可以用 `--version` 直接指定。提取哪些类别可在 `config.json` 的 `types` 中配置(默认全部开启);`update` 可配置只提取各分类最新若干首。Phira 打包的配置集中在 `config.json` 的 `phira` 段:`info_format` 选择信息文件格式(`yml` 默认、官方格式并显式记录定数;`txt` 为 RPE 兼容格式,Phira 只能从难度串推断定数,小数会失真);`generate_video` 控制是否额外生成带解锁视频的版本(输出为 `<难度>_video.pez`,需 ffmpeg);`preview_start`/`aspect_ratio`/`background_dim`/`line_length`/`offset`/`tags`/`intro`/`hold_partial_cover` 为 info.yml 其余必填字段的取值。
 
 在已有其他版本产物的基础上提取新版本时,内容相同的文件(包括 Phira 打包产物 `.pez`)会自动与旧版本建立**硬链接**以节省磁盘空间(判定方式:文件大小 + 头尾各 `sample_bytes` 字节);文件系统不支持硬链接时自动回退为普通写入。该功能可在 `config.json` 的 `dedupe` 中关闭(`enabled`)或调整采样大小(`sample_bytes`,默认 65536 字节)。
 

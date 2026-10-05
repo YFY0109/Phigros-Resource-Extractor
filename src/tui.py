@@ -178,6 +178,8 @@ def edit_config(config):
     phira["info_format"] = Prompt.ask(
         "Phira 谱面信息格式(yml=官方格式、记录精确定数;txt=RPE 兼容)",
         choices=["yml", "txt"], default=phira.get("info_format", "yml"))
+    phira["generate_video"] = Confirm.ask(
+        "额外生成带解锁视频的 Phira 谱面(需要 ffmpeg)", default=phira.get("generate_video", True))
     webui = config.setdefault("webui", {})
     webui["host"] = Prompt.ask("WebUI 监听地址", default=webui.get("host", "127.0.0.1"))
     webui["port"] = IntPrompt.ask("WebUI 监听端口", default=int(webui.get("port", 8000)))

@@ -45,6 +45,7 @@ def test_build_pez_sp_uses_placeholder_fields(tmp_path, monkeypatch):
                  "lineLength: 6.0", "offset: 0.0", "tags: []", "intro: ''",
                  "holdPartialCover: false"):
         assert line in info_yml
+    assert "unlockVideo" not in info_yml
     assert chart == '{"lv": "SP"}'
 
 
@@ -144,3 +145,80 @@ def test_build_pez_yaml_escapes_special_values(tmp_path, monkeypatch):
     assert "charter: 'O''Brien'" in info_yml
     assert "difficulty: 7.5" in info_yml
     assert "level: 'HD Lv.7.5'" in info_yml
+
+
+def test_video_sources_mapping():
+    assert phira._video_sources_for("Spasmodic.姜米條", "AT") == ["Spas_Unlock"]
+    assert phira._video_sources_for("DesultorySignals.technoplanet", "EZ") == [
+        "ds_unlockIntro_Sound", "ds_unlockDifficulties", "ds_unlockEZ"]
+    assert phira._video_sources_for("DesultorySignals.technoplanet", "Legacy") is None
+    assert phira._video_sources_for("SomeOtherSong.test", "EZ") is None
+
+
+def test_build_pez_with_video(tmp_path, monkeypatch):
+    monkeypatch.setattr(common, "OUTPUT_ROOT", str(tmp_path / "outputs"))
+    version = "9.9.9"
+    song_id = "Song.Video"
+    chart_dir = os.path.join(common.resource_dir(version, "chart"), "%s.0" % song_id)
+    os.makedirs(chart_dir)
+    with open(os.path.join(chart_dir, "EZ.json"), "w", encoding="utf8") as f:
+        f.write('{"lv": "EZ"}')
+    info = {"Name": "Song", "Composer": "C", "Illustrator": "I",
+            "Chater": ["Charter"], "difficulty": ["1.0"]}
+
+    data = phira.build_pez_bytes(version, "EZ", song_id, info, _logger(), 0,
+                                 video=("Song.Video_unlock.mp4", b"FAKEVIDEO"))
+    with ZipFile(BytesIO(data)) as pez:
+        info_yml = pez.read("info.yml").decode("utf8")
+        video_data = pez.read("Song.Video_unlock.mp4")
+    assert "unlockVideo: 'Song.Video_unlock.mp4'" in info_yml
+    assert video_data == b"FAKEVIDEO"
+
+
+def test_build_pez_custom_extra_fields(tmp_path, monkeypatch):
+    monkeypatch.setattr(common, "OUTPUT_ROOT", str(tmp_path / "outputs"))
+    version = "9.9.9"
+    song_id = "Song.Extra"
+    chart_dir = os.path.join(common.resource_dir(version, "chart"), "%s.0" % song_id)
+    os.makedirs(chart_dir)
+    with open(os.path.join(chart_dir, "EZ.json"), "w", encoding="utf8") as f:
+        f.write('{"lv": "EZ"}')
+    info = {"Name": "Song", "Composer": "C", "Illustrator": "I",
+            "Chater": ["Charter"], "difficulty": ["1.0"]}
+    extra = {"preview_start": 1.5, "aspect_ratio": 2.0, "background_dim": 0.3,
+             "line_length": 5.0, "offset": 0.25, "tags": ["a", "b"],
+             "intro": "hello", "hold_partial_cover": True}
+
+    data = phira.build_pez_bytes(version, "EZ", song_id, info, _logger(), 0, extra_fields=extra)
+    with ZipFile(BytesIO(data)) as pez:
+        info_yml = pez.read("info.yml").decode("utf8")
+    for line in ("previewStart: 1.5", "aspectRatio: 2.0", "backgroundDim: 0.3",
+                 "lineLength: 5.0", "offset: 0.25", "tags: ['a', 'b']",
+                 "intro: 'hello'", "holdPartialCover: true"):
+        assert line in info_yml
+
+
+def test_chart_extra_fields_fallbacks():
+    extra = phira._chart_extra_fields({"preview_start": "bad", "tags": "not-a-list"}, _logger())
+    assert extra["preview_start"] == 0.0
+    assert extra["tags"] == []
+    assert extra["hold_partial_cover"] is False
+
+
+def test_build_unlock_video_single_file(tmp_path):
+    videos_dir = tmp_path / "videos"
+    videos_dir.mkdir()
+    (videos_dir / "Spas_Unlock.mp4").write_bytes(b"V")
+    cache = {}
+    result = phira._build_unlock_video("Spasmodic.x", "AT", str(videos_dir), cache, _logger())
+    assert result == ("Spasmodic.x_unlock.mp4", b"V")
+    # 同曲目其它难度命中缓存
+    assert phira._build_unlock_video("Spasmodic.x", "EZ", str(videos_dir), cache, _logger()) == result
+    # 无映射曲目返回 None
+    assert phira._build_unlock_video("Unknown.x", "EZ", str(videos_dir), cache, _logger()) is None
+
+
+def test_build_unlock_video_missing_file(tmp_path):
+    cache = {}
+    assert phira._build_unlock_video("Spasmodic.x", "AT", str(tmp_path), cache, _logger()) is None
+    assert cache  # 失败结果也缓存,避免重复告警
