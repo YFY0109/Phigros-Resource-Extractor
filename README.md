@@ -45,7 +45,7 @@ uv run python src/tui.py --input
 
 音乐提取(`music`)会通过 `fsb5` 调用本地库 `libogg` 与 `libvorbis`(`libvorbisenc`
 缺失时会回退到 `libvorbis`,Windows 官方 DLL 已含编码符号);不启用音乐时无需这些库。
-缺失时会在该步骤给出包含安装命令的错误提示:
+缺失时会在提取开始前给出包含安装命令的错误提示(也可在 `config.json` 中关闭 `types.music` 跳过):
 
 | 平台 | 获取方式 |
 | --- | --- |

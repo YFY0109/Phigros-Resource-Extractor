@@ -92,11 +92,23 @@ def save_image(writer, path, image):
     writer.put(path, bytes_io)
 
 
-def save_music(writer, path, music: AudioClip):
-    # 仅音乐提取需要,延迟导入;未启用音乐时无需 fsb5 及其本地库
+def _prepare_music_libs():
+    """整轮提取开始前检查音乐本地库(ogg/vorbis);缺失时给出安装提示并中止。
+
+    检查每轮只执行一次,避免逐文件探测;如不需要音乐提取,可在 config.json 中关闭 types.music。
+    """
     from native_libs import check_available, ensure_patched
     ensure_patched()
-    check_available()
+    try:
+        check_available()
+    except RuntimeError as e:
+        raise SystemExit("%s。如不需要音乐提取,可在 config.json 中把 types.music 设为 false" % e)
+
+
+def save_music(writer, path, music: AudioClip):
+    # 仅音乐提取需要,延迟导入;本地库可用性已在 run() 中统一检查
+    from native_libs import ensure_patched
+    ensure_patched()
     from fsb5 import FSB5
     fsb = FSB5(music.m_AudioData)
     writer.put(path, fsb.rebuild_sample(fsb.samples[0]))
@@ -252,6 +264,10 @@ def select_songs(all_ids, update):
 def run(apk_path, version, config, logger, progress=None):
     progress = progress or NULL_PROGRESS
     types = config["types"]
+
+    # 音乐提取依赖本地库:整轮开始前检查一次,缺失时快速失败并给出安装提示
+    if types.get("music"):
+        _prepare_music_libs()
 
     # 创建启用的资源输出目录;Android 上放置 .nomedia 防止媒体扫描
     for resource_type, enabled in types.items():
