@@ -70,6 +70,8 @@ def test_run_packages_legacy_pez(tmp_path, monkeypatch):
     assert "Level: Legacy Lv.15.6" in info_txt
     assert "Charter: 旧谱师" in info_txt
 
+
+def test_run_packages_sp_pez(tmp_path, monkeypatch):
     monkeypatch.setattr(common, "OUTPUT_ROOT", str(tmp_path / "outputs"))
     version = "9.9.9"
     song_id = "Song.Test"
