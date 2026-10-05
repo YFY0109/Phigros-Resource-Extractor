@@ -122,11 +122,13 @@ def save_asset(key, entry, writer, pool, config, version, logger):
         bytes_io = BytesIO()
         obj.image.save(bytes_io, "png")
         writer.put(os.path.join(resource_dir(version, "avatar"), "%s.png" % key), bytes_io)
-    elif types["chart"] and key[-14:-7] == "/Chart_" and key[-5:] == ".json":
+    elif types["chart"] and "/Chart_" in key and key.endswith(".json"):
         logger.info(key)
-        song_dir = os.path.join(resource_dir(version, "chart"), key[:-14])
+        song_key, level = key.rsplit("/Chart_", 1)
+        level = level[:-5]  # 去掉 .json 后缀,支持任意难度名(如 EZ/AT/SP/Legacy)
+        song_dir = os.path.join(resource_dir(version, "chart"), song_key)
         os.makedirs(song_dir, exist_ok=True)
-        writer.put(os.path.join(song_dir, "%s.json" % key[-7:-5]), obj.script)
+        writer.put(os.path.join(song_dir, "%s.json" % level), obj.script)
     elif types["illustrationBlur"] and key[-23:-3] == ".0/IllustrationBlur.":
         key = key[:-23]
         bytes_io = BytesIO()
