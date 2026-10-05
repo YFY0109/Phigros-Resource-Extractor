@@ -16,7 +16,7 @@
 | 低质量曲绘 | `outputs/<版本>/illustrationsLowRes/` | PNG |
 | 音乐文件 | `outputs/<版本>/music/` | OGG |
 | 解锁动画视频 | `outputs/<版本>/videos/` | WebM / MP4(来自游戏 VideoClip) |
-| Phira 自制谱 | `outputs/<版本>/phira/<曲目>/` | `<难度>.pez` |
+| Phira 自制谱 | `outputs/<版本>/phira/<曲目>/` | `<难度>.pez`(含 SP / Legacy 特殊难度) |
 
 解锁动画视频(章节解锁 PV 等)有两类来源,都会被提取:
 

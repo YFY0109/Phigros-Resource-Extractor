@@ -119,16 +119,20 @@ def run(path, version, logger, progress=None):
         if key == "otherSongs":
             continue
         for song in songs:
-            if len(song["difficulty"]) == 5:
-                song["difficulty"].pop()
-            if song["difficulty"][-1] == 0.0:
-                song["difficulty"].pop()
-                song["charter"].pop()
-            for i in range(len(song["difficulty"])):
-                song["difficulty"][i] = str(round(song["difficulty"][i], 1))
+            # 难度槽位顺序固定为 EZ/HD/IN/AT/Legacy(旧谱),0.0 表示该槽位无谱面;
+            # 空槽位保留占位、仅去掉末尾空槽,避免与其它难度错位(如 Aleph-0 无 AT 但有旧谱)
+            values = []
+            charters = []
+            for i, value in enumerate(song["difficulty"]):
+                values.append(str(round(value, 1)) if value != 0.0 else "")
+                charters.append(song["charter"][i] if i < len(song["charter"]) else "")
+            while values and values[-1] == "":
+                values.pop()
+            while charters and charters[-1] == "":
+                charters.pop()
             song["songsId"] = song["songsId"][:-2]
-            difficulty.append([song["songsId"]] + song["difficulty"])
-            table.append((song["songsId"], song["songsName"], song["composer"], song["illustrator"], *song["charter"]))
+            difficulty.append([song["songsId"]] + values)
+            table.append((song["songsId"], song["songsName"], song["composer"], song["illustrator"], *charters))
 
     progress.check_cancelled()
     logger.debug(difficulty)

@@ -8,6 +8,7 @@
 
 SP 谱面(如 4.0.1 的 Message)不登记在信息表中,以谱面文件 charts/<曲目>.0/SP.json
 是否存在判断;难度标识固定为 `SP Lv.?`(定数视为 0.0),谱师等未知信息用 UK 代替。
+Legacy 旧谱(如 Aleph-0、ESM)取 difficulty.csv 中对应槽位的实际定数,标识为 `Legacy Lv.定数`。
 """
 import argparse
 import csv
@@ -21,7 +22,8 @@ from dedupe import DedupeStore, write_file
 from log import init_console_logger
 from progress import NULL_PROGRESS
 
-LEVELS = ("EZ", "HD", "IN", "AT")
+# 难度槽位,与 difficulty.csv 的值列一一对应(空字符串表示该槽位无谱面)
+LEVELS = ("EZ", "HD", "IN", "AT", "Legacy")
 
 # zip 条目固定时间戳:保证内容相同的 pez 字节级可复现,从而参与跨版本硬链接去重
 FIXED_ZIP_TIME = (2000, 1, 1, 0, 0, 0)
@@ -173,7 +175,9 @@ def run(version, logger, progress=None):
         progress.check_cancelled()
         try:
             logger.info("正在处理:%s,作曲者:%s", info["Name"], info["Composer"])
-            for level_index in range(len(info.get("difficulty", []))):
+            for level_index, value in enumerate(info.get("difficulty", [])):
+                if not value:
+                    continue  # 空槽位(如无 AT/Legacy)
                 level = LEVELS[level_index]
                 try:
                     data = build_pez_bytes(version, level, song_id, info, logger, level_index)

@@ -43,7 +43,33 @@ def test_build_pez_sp_uses_placeholder_fields(tmp_path, monkeypatch):
     assert chart == '{"lv": "SP"}'
 
 
-def test_run_packages_sp_pez(tmp_path, monkeypatch):
+def test_run_packages_legacy_pez(tmp_path, monkeypatch):
+    monkeypatch.setattr(common, "OUTPUT_ROOT", str(tmp_path / "outputs"))
+    version = "9.9.9"
+    song_id = "Song.Legacy"
+    # 槽位 EZ/HD/IN/AT/Legacy:无 AT、有旧谱(定数 15.6)
+    _write_csv(os.path.join(common.version_dir(version), "info", "info.csv"),
+               [[song_id, "Song", "Composer", "Illustrator", "C1", "C2", "C3", "", "旧谱师"]])
+    _write_csv(os.path.join(common.version_dir(version), "info", "difficulty.csv"),
+               [[song_id, "3.5", "12.2", "16.0", "", "15.6"]])
+    chart_dir = os.path.join(common.resource_dir(version, "chart"), "%s.0" % song_id)
+    os.makedirs(chart_dir)
+    for level in ("EZ", "HD", "IN", "Legacy"):
+        with open(os.path.join(chart_dir, "%s.json" % level), "w", encoding="utf8") as f:
+            f.write('{"lv": "%s"}' % level)
+
+    created = phira.run(version, _logger(), ProgressReporter())
+    assert created == 4  # EZ/HD/IN/Legacy(跳过空槽位 AT)
+
+    song_dir = os.path.join(common.version_dir(version), "phira", "%s.0" % song_id)
+    assert not os.path.exists(os.path.join(song_dir, "AT.pez"))
+    legacy_pez = os.path.join(song_dir, "Legacy.pez")
+    assert os.path.isfile(legacy_pez)
+    with ZipFile(legacy_pez) as pez:
+        info_txt = pez.read("info.txt").decode("utf8")
+    assert "Level: Legacy Lv.15.6" in info_txt
+    assert "Charter: 旧谱师" in info_txt
+
     monkeypatch.setattr(common, "OUTPUT_ROOT", str(tmp_path / "outputs"))
     version = "9.9.9"
     song_id = "Song.Test"
