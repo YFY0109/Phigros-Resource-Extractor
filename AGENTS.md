@@ -26,7 +26,7 @@ uv run python src/phira.py [--version 版本]      # 4. 打包 outputs/<版本>/
 ## 注意事项
 
 - **不要升级 `UnityPy==1.10.18`**——代码依赖该版本的精确 API(`get_filtered_objects`、`read_typetree`),新版本会挂。
-- `fsb5`(音乐提取)先从系统库、再从**当前工作目录**加载 `libogg.dll`/`libvorbis.dll`(见 `fsb5/utils.py` 的 `load_lib`),因此音乐提取必须在仓库根目录运行。这两个 DLL 依赖 **MSVCR120.dll(VC++ 2013 运行库)**,缺失时报 `LibraryNotFoundException: Could not load the library 'vorbis'`(实测);`save_music` 延迟导入 fsb5,未启用音乐时无需该依赖。
+- `fsb5`(音乐提取)的本地库查找由 `src/native_libs.py` 接管(`save_music` 中延迟生效):系统库优先,再按跨平台命名从仓库根目录/当前工作目录加载 `libogg`/`libvorbis`;`libvorbisenc` 缺失时按 fsb5 的回退语义使用 `libvorbis`(Windows 官方 DLL 已含编码符号),两者都不可用时给出各平台安装提示。Windows 的 DLL 依赖 **MSVCR120.dll(VC++ 2013 运行库)**,缺失时报 `LibraryNotFoundException`(实测);未启用音乐时无需该依赖。
 - `config.json` 的 `types` 控制提取的资源类型。`update` 计数全为 `0` 表示全量提取;否则只提取各分类最新 N 首(主线/单曲/支线按 `src/resource.py` 中 `MAIN_STORY_END`、`OTHER_SONG_END` 两个锚点曲 ID 分段,锚点跟随游戏曲目表,游戏更新后可能需要调整)。
 - 资源类型到输出目录的映射集中在 `src/common.py` 的 `RESOURCE_DIRS`,`resource.py` 写入与 `phira.py` 读取共用,不要再硬编码目录名。
 - `info/` 下的表格类数据为 CSV(`difficulty/info/collection/tmp`,UTF-8 带 BOM、Excel 友好;`gameInformation.py` 写,`resource.py`/`phira.py` 读,读取用 `utf-8-sig` 兼容 BOM);单列列表(`single/illustration/avatar/tips`)保持 txt。
