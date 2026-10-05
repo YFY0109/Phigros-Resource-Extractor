@@ -5,6 +5,9 @@
 
 输入:outputs/<版本>/ 的 info/、charts/、illustrationsLowRes/、music/
 输出:outputs/<版本>/phira/<曲目>.0/<难度>.pez
+
+SP 谱面(如 4.0.1 的 Message)不登记在信息表中,以谱面文件 charts/<曲目>.0/SP.json
+是否存在判断;难度标识固定为 `SP Lv.?`(定数视为 0.0),谱师等未知信息用 UK 代替。
 """
 import argparse
 import csv
@@ -75,24 +78,32 @@ def apply_difficulties(infos, difficulty_path, logger):
         raise SystemExit("错误:未找到 %s,请先运行 gameInformation.py" % difficulty_path)
 
 
-def build_pez_bytes(version, level, song_id, info, logger):
+def build_pez_bytes(version, level, song_id, info, logger, level_index=None):
     """在内存中构建单个难度的 .pez,返回 bytes。
 
     所有 zip 条目使用固定时间戳,使内容相同的 pez 字节级可复现(便于跨版本去重)。
+    level_index=None 表示 SP 等未登记进信息表的难度:难度标识用 "SP Lv.?"
+    (定数视为 0.0);谱师等未知信息用 UK 代替。
     """
-    level_index = LEVELS.index(level)
+    if level_index is None:
+        level_text = "%s Lv.?" % level
+        charter = "UK"
+    else:
+        level_text = "%s Lv.%s" % (level, info["difficulty"][level_index])
+        charters = info.get("Chater") or []
+        charter = (charters[level_index] if level_index < len(charters) else "") or "UK"
     buffer = BytesIO()
     with ZipFile(buffer, "w") as pez:
         info_txt_content = (
             "#\n"
-            "Name: %s\n" % info["Name"] +
+            "Name: %s\n" % (info["Name"] or "UK") +
             "Song: %s.ogg\n" % song_id +
             "Picture: %s.png\n" % song_id +
             "Chart: %s.json\n" % song_id +
-            "Level: %s Lv.%s\n" % (level, info["difficulty"][level_index]) +
-            "Composer: %s\n" % info["Composer"] +
-            "Illustrator: %s\n" % info["Illustrator"] +
-            "Charter: %s" % info["Chater"][level_index]
+            "Level: %s\n" % level_text +
+            "Composer: %s\n" % (info["Composer"] or "UK") +
+            "Illustrator: %s\n" % (info["Illustrator"] or "UK") +
+            "Charter: %s" % charter
         )
         pez.writestr(ZipInfo("info.txt", date_time=FIXED_ZIP_TIME), info_txt_content)
 
@@ -126,6 +137,14 @@ def build_pez_bytes(version, level, song_id, info, logger):
     return buffer.getvalue()
 
 
+def _write_pez(store, pez_path, data):
+    """写入一个 pez 文件(去重开启时经 DedupeStore 处理)。"""
+    if store is not None:
+        store.write(pez_path, data)
+    else:
+        write_file(pez_path, data)
+
+
 def run(version, logger, progress=None):
     """执行指定版本的完整打包流程,返回生成的 pez 数量。"""
     progress = progress or NULL_PROGRESS
@@ -157,14 +176,23 @@ def run(version, logger, progress=None):
             for level_index in range(len(info.get("difficulty", []))):
                 level = LEVELS[level_index]
                 try:
-                    data = build_pez_bytes(version, level, song_id, info, logger)
+                    data = build_pez_bytes(version, level, song_id, info, logger, level_index)
                     song_dir = os.path.join(phira_root, "%s.0" % song_id)
                     os.makedirs(song_dir, exist_ok=True)
-                    pez_path = os.path.join(song_dir, "%s.pez" % level)
-                    if store is not None:
-                        store.write(pez_path, data)
-                    else:
-                        write_file(pez_path, data)
+                    _write_pez(store, os.path.join(song_dir, "%s.pez" % level), data)
+                    created += 1
+                except BadZipFile as e:
+                    logger.error("创建 .pez 文件时出错 - %s", e)
+                except Exception as e:
+                    logger.error("写入 .pez 文件时出错 - %s", e)
+            # SP 谱面:不登记在信息表中(如 4.0.1 的 Message),以谱面文件是否存在判断
+            sp_chart = os.path.join(resource_dir(version, "chart"), "%s.0" % song_id, "SP.json")
+            if os.path.isfile(sp_chart):
+                try:
+                    data = build_pez_bytes(version, "SP", song_id, info, logger)
+                    song_dir = os.path.join(phira_root, "%s.0" % song_id)
+                    os.makedirs(song_dir, exist_ok=True)
+                    _write_pez(store, os.path.join(song_dir, "SP.pez"), data)
                     created += 1
                 except BadZipFile as e:
                     logger.error("创建 .pez 文件时出错 - %s", e)
