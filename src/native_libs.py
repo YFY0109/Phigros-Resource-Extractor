@@ -65,9 +65,31 @@ def ensure_patched():
         _PATCHED = True
 
 
+def _has_encode_symbol(lib_path):
+    """vorbis 库是否带编码符号(Windows 官方 libvorbis.dll 一并包含 vorbisenc 的函数)。"""
+    try:
+        ctypes.CDLL(lib_path).vorbis_encode_setup_vbr
+        return True
+    except (OSError, AttributeError):
+        return False
+
+
 def missing_libraries():
-    """返回当前环境找不到的库名列表。"""
-    return [name for name in LIB_NAMES if find_library(name) is None]
+    """返回当前环境找不到的库名列表。
+
+    与 fsb5 的加载方式(vorbis.py)保持一致:`vorbis`/`ogg` 必需;
+    `vorbisenc` 缺失时会回退到 `vorbis`,因此单独缺 vorbisenc 不算缺失,
+    仅当 `vorbis` 也不带编码符号时才算缺失。
+    """
+    missing = []
+    vorbis = find_library("vorbis")
+    if vorbis is None:
+        missing.append("vorbis")
+    if find_library("vorbisenc") is None and not (vorbis and _has_encode_symbol(vorbis)):
+        missing.append("vorbisenc")
+    if find_library("ogg") is None:
+        missing.append("ogg")
+    return missing
 
 
 def install_hint():

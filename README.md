@@ -43,8 +43,9 @@ uv run python src/tui.py --input
 
 跨平台(Windows / Linux / macOS),依赖统一由 [uv](https://docs.astral.sh/uv/) 管理。
 
-音乐提取(`music`)会通过 `fsb5` 调用本地库 `libogg` 与 `libvorbis`(需包含
-`libvorbisenc`);不启用音乐时无需这些库。缺失时会在该步骤给出包含安装命令的错误提示:
+音乐提取(`music`)会通过 `fsb5` 调用本地库 `libogg` 与 `libvorbis`(`libvorbisenc`
+缺失时会回退到 `libvorbis`,Windows 官方 DLL 已含编码符号);不启用音乐时无需这些库。
+缺失时会在该步骤给出包含安装命令的错误提示:
 
 | 平台 | 获取方式 |
 | --- | --- |

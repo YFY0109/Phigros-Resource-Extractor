@@ -60,3 +60,24 @@ def test_ensure_patched_is_idempotent(monkeypatch):
         assert native_libs._PATCHED is True
     finally:
         monkeypatch.setattr(native_libs.ctypes.util, "find_library", original)
+
+
+def test_missing_libraries_vorbisenc_can_fall_back_to_vorbis(monkeypatch):
+    """单独缺 vorbisenc 时不算缺失:vorbis 带编码符号即可(Windows 官方 DLL)。"""
+    paths = {"vorbis": "/lib/libvorbis.dll", "ogg": "/lib/libogg.dll"}
+    monkeypatch.setattr(native_libs, "find_library", lambda name: paths.get(name))
+    monkeypatch.setattr(native_libs, "_has_encode_symbol", lambda path: True)
+    assert native_libs.missing_libraries() == []
+
+
+def test_missing_libraries_reports_vorbisenc_without_symbols(monkeypatch):
+    """vorbis 也不带编码符号时,vorbisenc 仍算缺失(Linux 解码版 libvorbis)。"""
+    paths = {"vorbis": "/lib/libvorbis.so.0", "ogg": "/lib/libogg.so.0"}
+    monkeypatch.setattr(native_libs, "find_library", lambda name: paths.get(name))
+    monkeypatch.setattr(native_libs, "_has_encode_symbol", lambda path: False)
+    assert native_libs.missing_libraries() == ["vorbisenc"]
+
+
+def test_missing_libraries_reports_all_when_nothing_found(monkeypatch):
+    monkeypatch.setattr(native_libs, "find_library", lambda name: None)
+    assert native_libs.missing_libraries() == ["vorbis", "vorbisenc", "ogg"]
