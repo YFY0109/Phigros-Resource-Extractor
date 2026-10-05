@@ -72,7 +72,7 @@ PAGE = """<!DOCTYPE html>
 <h1>Phigros 资源提取器 <span style="font-size:12px;color:#9aa0b0">WebUI</span></h1>
 <div class="card">
   <label>APK 路径(必填,需包含版本号)
-    <input type="text" id="apk" placeholder="C:\\Users\\...\\Phigros_4.0.1.apk">
+    <input type="text" id="apk" placeholder="如 /path/to/Phigros_4.0.1.apk">
   </label>
   <label>版本号(可选,留空则从文件名识别)
     <input type="text" id="version" placeholder="4.0.1">

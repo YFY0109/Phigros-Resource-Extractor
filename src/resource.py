@@ -93,7 +93,11 @@ def save_image(writer, path, image):
 
 
 def save_music(writer, path, music: AudioClip):
-    from fsb5 import FSB5  # 仅音乐提取需要,延迟导入,未启用音乐时无需该依赖
+    # 仅音乐提取需要,延迟导入;未启用音乐时无需 fsb5 及其本地库
+    from native_libs import check_available, ensure_patched
+    ensure_patched()
+    check_available()
+    from fsb5 import FSB5
     fsb = FSB5(music.m_AudioData)
     writer.put(path, fsb.rebuild_sample(fsb.samples[0]))
 
