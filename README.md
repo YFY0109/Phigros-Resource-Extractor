@@ -90,7 +90,7 @@ uv run python src/tui.py --input
    uv run python src/phira.py                                # 打包 Phira 自制谱
    ```
 
-版本号默认从 APK 内 `AndroidManifest.xml` 的 `versionName` 读取(不依赖文件名),读取失败时才回退文件名中的 `x.y.z`;也可以用 `--version` 直接指定。提取哪些类别可在 `config.json` 的 `types` 中配置(默认全部开启);`update` 可配置只提取各分类最新若干首。Phira 打包的配置集中在 `config.json` 的 `phira` 段:`info_format` 选择信息文件格式(`yml` 默认、官方格式并显式记录定数;`txt` 为 RPE 兼容格式,Phira 只能从难度串推断定数,小数会失真);`generate_video` 控制是否额外生成带解锁视频的版本(输出为 `<难度>_video.pez`,需 ffmpeg);`preview_start`/`aspect_ratio`/`background_dim`/`line_length`/`offset`/`tags`/`intro`/`hold_partial_cover` 为 info.yml 其余必填字段的取值。
+版本号默认从 APK 内 `AndroidManifest.xml` 的 `versionName` 读取(不依赖文件名),读取失败时才回退文件名中的 `x.y.z`;也可以用 `--version` 直接指定。提取哪些类别可在 `config.json` 的 `types` 中配置(默认全部开启);`update` 可配置只提取各分类最新若干首。Phira 打包的配置集中在 `config.json` 的 `phira` 段:`info_format` 选择信息文件格式(`yml` 默认、官方格式并显式记录定数;`txt` 为 RPE 兼容格式,Phira 只能从难度串推断定数,小数会失真);`generate_video` 控制是否额外生成带解锁视频的版本(输出为 `<难度>_video.pez`,需 ffmpeg);`info` 子段可配置 info.yml 其余必填字段(`preview_start`/`aspect_ratio`/`background_dim`/`line_length`/`offset`/`tags`/`intro`/`hold_partial_cover`)。
 
 在已有其他版本产物的基础上提取新版本时,内容相同的文件(包括 Phira 打包产物 `.pez`)会自动与旧版本建立**硬链接**以节省磁盘空间(判定方式:文件大小 + 头尾各 `sample_bytes` 字节);文件系统不支持硬链接时自动回退为普通写入。该功能可在 `config.json` 的 `dedupe` 中关闭(`enabled`)或调整采样大小(`sample_bytes`,默认 65536 字节)。
 

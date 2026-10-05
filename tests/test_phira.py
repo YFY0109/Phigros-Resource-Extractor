@@ -198,11 +198,23 @@ def test_build_pez_custom_extra_fields(tmp_path, monkeypatch):
         assert line in info_yml
 
 
+def test_chart_extra_fields_reads_nested_config():
+    extra = phira._chart_extra_fields(
+        {"info": {"preview_start": 2.5, "tags": ["x"], "hold_partial_cover": True}}, _logger())
+    assert extra["preview_start"] == 2.5
+    assert extra["tags"] == ["x"]
+    assert extra["hold_partial_cover"] is True
+
+
 def test_chart_extra_fields_fallbacks():
-    extra = phira._chart_extra_fields({"preview_start": "bad", "tags": "not-a-list"}, _logger())
+    extra = phira._chart_extra_fields({"info": {"preview_start": "bad", "tags": "not-a-list"}}, _logger())
     assert extra["preview_start"] == 0.0
     assert extra["tags"] == []
     assert extra["hold_partial_cover"] is False
+    # 非法 info 段整体回退默认
+    extra = phira._chart_extra_fields({"info": "bad"}, _logger())
+    assert extra["preview_start"] == 0.0
+    assert extra["tags"] == []
 
 
 def test_build_unlock_video_single_file(tmp_path):

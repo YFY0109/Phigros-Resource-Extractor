@@ -142,18 +142,23 @@ def _yaml_number(value):
 
 
 def _chart_extra_fields(phira_config, logger):
-    """从 config.json 的 phira 段读取 info.yml 其余必填字段;非法值回退默认。"""
+    """从 config.json 的 phira.info 子段读取 info.yml 其余必填字段;非法值回退默认。"""
+    info_config = phira_config.get("info", {})
+    if not isinstance(info_config, dict):
+        logger.warning("config.json 中 phira.info 不是对象,按默认值处理")
+        info_config = {}
+
     def number(key):
         default = CHART_FIELD_DEFAULTS[key]
         try:
-            return float(phira_config.get(key, default))
+            return float(info_config.get(key, default))
         except (TypeError, ValueError):
-            logger.warning("config.json 中 phira.%s 不是数字,按 %s 处理", key, default)
+            logger.warning("config.json 中 phira.info.%s 不是数字,按 %s 处理", key, default)
             return default
 
-    tags = phira_config.get("tags", CHART_FIELD_DEFAULTS["tags"])
+    tags = info_config.get("tags", CHART_FIELD_DEFAULTS["tags"])
     if not isinstance(tags, list):
-        logger.warning("config.json 中 phira.tags 不是列表,按空列表处理")
+        logger.warning("config.json 中 phira.info.tags 不是列表,按空列表处理")
         tags = []
 
     return {
@@ -163,8 +168,8 @@ def _chart_extra_fields(phira_config, logger):
         "line_length": number("line_length"),
         "offset": number("offset"),
         "tags": [str(item) for item in tags],
-        "intro": str(phira_config.get("intro", CHART_FIELD_DEFAULTS["intro"]) or ""),
-        "hold_partial_cover": bool(phira_config.get("hold_partial_cover", CHART_FIELD_DEFAULTS["hold_partial_cover"])),
+        "intro": str(info_config.get("intro", CHART_FIELD_DEFAULTS["intro"]) or ""),
+        "hold_partial_cover": bool(info_config.get("hold_partial_cover", CHART_FIELD_DEFAULTS["hold_partial_cover"])),
     }
 
 
